@@ -69,5 +69,3 @@ js/
   map-maker.js      Map Maker logic
   map-hider.js      Fog of War logic
 ```
-
-Static browser-based tools — no server or build step required. Works on GitHub Pages.
