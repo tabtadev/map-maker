@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Map Beta</title>
+  <link rel="stylesheet" href="css/shared.css">
+  <link rel="stylesheet" href="css/map-beta.css">
+</head>
+<body>
+  <div class="container" id="app">
+
+    <!-- ═══ TOP TOOLBAR ═══ -->
+    <div class="top-toolbar">
+      <a href="index.html" class="toolbar-btn icon-btn" title="Home">🏠</a>
+      <div class="toolbar-divider"></div>
+
+      <!-- MODE TOGGLE -->
+      <div class="toolbar-section">
+        <div class="mode-toggle" id="modeToggle">
+          <button class="mode-btn active" id="modeBuildBtn" onclick="setAppMode('build')">🔨 Build</button>
+          <button class="mode-btn" id="modePlayBtn" onclick="setAppMode('play')">🎮 Play</button>
+        </div>
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <!-- GRID CONTROLS -->
+      <div class="toolbar-section" id="gridControls">
+        <label>Grid</label>
+        <input type="number" id="gridWidth" value="20" min="10" max="50" class="toolbar-input">
+        <span style="color:#555">×</span>
+        <input type="number" id="gridHeight" value="15" min="10" max="50" class="toolbar-input">
+        <button class="toolbar-btn" onclick="resizeGrid()">OK</button>
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <!-- ZOOM -->
+      <div class="toolbar-section">
+        <button class="toolbar-btn icon-btn" onclick="zoomIn()" title="Zoom +">+</button>
+        <span class="zoom-display" id="zoomDisplay">100%</span>
+        <button class="toolbar-btn icon-btn" onclick="zoomOut()" title="Zoom −">−</button>
+        <button class="toolbar-btn" onclick="resetZoom()">Reset</button>
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <!-- TOGGLES -->
+      <div class="toolbar-section">
+        <button class="toolbar-btn icon-btn active" id="toggleGridBtn" onclick="toggleGrid()" title="Grid">▦</button>
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <!-- UNDO / REDO -->
+      <div class="toolbar-section">
+        <button class="toolbar-btn icon-btn" id="undoBtn" onclick="undo()" title="Undo" disabled>↩</button>
+        <button class="toolbar-btn icon-btn" id="redoBtn" onclick="redo()" title="Redo" disabled>↪</button>
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <!-- MAP NAME & FILE OPS -->
+      <div class="toolbar-section">
+        <input type="text" id="mapName" placeholder="Map name" class="toolbar-input" style="width:130px">
+      </div>
+      <div class="toolbar-section">
+        <button class="toolbar-btn" onclick="exportJSON()" title="Export JSON">💾 Save</button>
+        <button class="toolbar-btn" onclick="document.getElementById('importInput').click()" title="Import JSON">📂 Load</button>
+        <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(event)">
+        <button class="toolbar-btn" onclick="exportPNG()" title="Export PNG">📸 PNG</button>
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <!-- IMPORT IMAGE (play mode / background) -->
+      <div class="toolbar-section">
+        <button class="toolbar-btn" onclick="document.getElementById('imgInput').click()" title="Import background image">🖼️ Image</button>
+        <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="loadBackgroundImage(event)">
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <!-- PLAY MODE EXTRAS -->
+      <div class="toolbar-section play-only">
+        <button class="toolbar-btn" id="playerViewBtn" onclick="openPlayerView()" title="Player view">👁️ Player View</button>
+        <button class="toolbar-btn" id="peekBtn" onclick="togglePeek()" title="Peek through fog (V)">👀 Peek</button>
+      </div>
+
+      <!-- RIGHT SIDE -->
+      <div style="flex:1"></div>
+      <div class="toolbar-section">
+        <button class="toolbar-btn" id="minimapBtn" onclick="toggleMinimap()" title="Minimap">🗺️</button>
+        <button class="toolbar-btn" onclick="toggleShortcuts()" title="Shortcuts">⌨️</button>
+        <button class="toolbar-btn" onclick="showSettings()" title="Settings">⚙️</button>
+        <button class="toolbar-btn erase-btn" onclick="clearAll()" title="Clear all">🗑️</button>
+      </div>
+    </div>
+
+    <!-- ═══ HUD STATUS BAR ═══ -->
+    <div class="hud-bar" id="hudBar">
+      <span id="hudMode">BUILD</span>
+      <span class="hud-sep">—</span>
+      <span id="hudTool">Floor</span>
+      <span class="hud-sep">|</span>
+      <span id="hudColor" class="hud-color-dot" style="background:#f5f5dc"></span>
+      <span id="hudHint" class="hud-hint"></span>
+    </div>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <div class="main-content" id="mainContent">
+
+      <!-- LEFT SIDEBAR -->
+      <div class="sidebar" id="sidebar">
+
+        <!-- ─── BUILD MODE SIDEBAR ─── -->
+        <div class="sidebar-content build-only" id="buildSidebar">
+
+          <!-- Mode buttons -->
+          <div class="sidebar-section">
+            <div class="mode-buttons">
+              <button class="sidebar-mode-btn active" id="btn-floor" onclick="setBuildTool('floor')">⬜ Floor</button>
+              <button class="sidebar-mode-btn" id="btn-wall" onclick="setBuildTool('wall')">🧱 Walls</button>
+              <button class="sidebar-mode-btn" id="btn-object" onclick="setBuildTool('object')">😀 Objects</button>
+              <button class="sidebar-mode-btn" id="btn-light" onclick="setBuildTool('light')">💡 Lights</button>
+              <button class="sidebar-mode-btn" id="btn-erase" onclick="setBuildTool('erase')">🧹 Erase</button>
+            </div>
+          </div>
+
+          <!-- SHARED COLOR PALETTE (floor + wall) -->
+          <div class="sidebar-section" id="sharedColorSection">
+            <label class="small-label">🎨 Color (floor & walls)</label>
+            <div class="color-grid" id="colorPalette"></div>
+            <button class="toolbar-btn" style="width:100%;margin-top:4px" onclick="addCustomColor()">+ Color</button>
+          </div>
+
+          <!-- FLOOR TOOLS -->
+          <div class="tool-panel" id="panel-floor">
+            <h4 class="panel-title">Floor</h4>
+            <div class="sub-section">
+              <div class="fog-tools" style="margin-bottom:6px">
+                <button class="toolbar-btn active" id="floorBrushBtn" onclick="setFloorMode('brush')">🖌️ Brush</button>
+                <button class="toolbar-btn" id="floorRectBtn" onclick="setFloorMode('fillRect')">⬜ Fill Rect</button>
+              </div>
+              <label class="small-label">Texture</label>
+              <div class="texture-grid" id="textureGrid">
+                <button class="texture-btn active" data-tex="" onclick="selectTexture('',this)">None</button>
+                <button class="texture-btn" data-tex="texture-water" onclick="selectTexture('texture-water',this)">🌊 Water</button>
+                <button class="texture-btn" data-tex="texture-grass" onclick="selectTexture('texture-grass',this)">🌿 Grass</button>
+                <button class="texture-btn" data-tex="texture-stone" onclick="selectTexture('texture-stone',this)">🪨 Stone</button>
+                <button class="texture-btn" data-tex="texture-sand" onclick="selectTexture('texture-sand',this)">🏖️ Sand</button>
+                <button class="texture-btn" data-tex="texture-lava" onclick="selectTexture('texture-lava',this)">🌋 Lava</button>
+                <button class="texture-btn" data-tex="texture-ice" onclick="selectTexture('texture-ice',this)">🧊 Ice</button>
+                <button class="texture-btn" data-tex="texture-wood" onclick="selectTexture('texture-wood',this)">🪵 Wood</button>
+                <button class="texture-btn" data-tex="texture-marble" onclick="selectTexture('texture-marble',this)">🏛️ Marble</button>
+                <button class="texture-btn" data-tex="texture-brick" onclick="selectTexture('texture-brick',this)">🧱 Brick</button>
+                <button class="texture-btn" data-tex="texture-dirt" onclick="selectTexture('texture-dirt',this)">🟫 Dirt</button>
+                <button class="texture-btn" data-tex="texture-moss" onclick="selectTexture('texture-moss',this)">🌱 Moss</button>
+                <button class="texture-btn" data-tex="texture-snow" onclick="selectTexture('texture-snow',this)">❄️ Snow</button>
+                <button class="texture-btn" data-tex="texture-swamp" onclick="selectTexture('texture-swamp',this)">🐊 Swamp</button>
+                <button class="texture-btn" data-tex="texture-crystal" onclick="selectTexture('texture-crystal',this)">🔮 Crystal</button>
+                <button class="texture-btn" data-tex="texture-metal" onclick="selectTexture('texture-metal',this)">⚙️ Metal</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- WALL TOOLS -->
+          <div class="tool-panel" id="panel-wall" style="display:none">
+            <h4 class="panel-title">Walls</h4>
+            <div class="sub-section">
+              <button class="toolbar-btn" id="houseDrawBtn" style="width:100%" onclick="toggleHouseDrawMode()">🏠 Paint → Generate Walls</button>
+              <span class="small-hint" id="houseDrawHint">Paint interior cells, then validate.</span>
+              <div id="houseBtnGroup" style="display:none">
+                <span class="small-label" id="houseCellCount">0 cells</span>
+                <button class="toolbar-btn" style="width:100%;margin-top:4px;background:#22c55e22;border-color:#22c55e" onclick="validateHouseDraw()">✅ Validate</button>
+                <button class="toolbar-btn" style="width:100%;margin-top:4px" onclick="cancelHouseDrawMode()">❌ Cancel</button>
+              </div>
+            </div>
+            <div class="sub-section">
+              <label class="small-label">Elements</label>
+              <div class="wall-elements-grid">
+                <button class="toolbar-btn" onclick="setWallSub('door-top')" title="Door top">🚪↑</button>
+                <button class="toolbar-btn" onclick="setWallSub('door-bottom')" title="Door bottom">🚪↓</button>
+                <button class="toolbar-btn" onclick="setWallSub('door-left')" title="Door left">🚪←</button>
+                <button class="toolbar-btn" onclick="setWallSub('door-right')" title="Door right">🚪→</button>
+                <button class="toolbar-btn" onclick="setWallSub('window-top')" title="Window top">🪟↑</button>
+                <button class="toolbar-btn" onclick="setWallSub('window-bottom')" title="Window bottom">🪟↓</button>
+                <button class="toolbar-btn" onclick="setWallSub('window-left')" title="Window left">🪟←</button>
+                <button class="toolbar-btn" onclick="setWallSub('window-right')" title="Window right">🪟→</button>
+                <button class="toolbar-btn" onclick="setWallSub('stairs-up')" title="Stairs up">🔼</button>
+                <button class="toolbar-btn" onclick="setWallSub('stairs-down')" title="Stairs down">🔽</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- OBJECT TOOLS -->
+          <div class="tool-panel" id="panel-object" style="display:none">
+            <h4 class="panel-title">Objects</h4>
+            <div class="sub-section">
+              <label class="small-label">Size</label>
+              <input type="range" id="emojiSize" min="0.3" max="3" step="0.1" value="1" class="small-range" oninput="emojiSizeVal=+this.value;document.getElementById('emojiSizeLabel').textContent=this.value+'×'">
+              <span id="emojiSizeLabel" class="small-label" style="float:right">1×</span>
+            </div>
+            <div class="sub-section">
+              <label class="small-label">Light Emission</label>
+              <label class="toggle-row"><input type="checkbox" id="emojiEmitsLight" onchange="updateEmojiLightOptions()"> Emits light</label>
+              <select id="emojiLightType" class="small-select" style="display:none">
+                <option value="torch">🔥 Torch</option>
+                <option value="candle">🕯️ Candle</option>
+                <option value="lantern">🏮 Lantern</option>
+                <option value="bonfire">🔥 Bonfire</option>
+                <option value="moonlight">🌙 Moonlight</option>
+                <option value="daylight">☀️ Daylight</option>
+              </select>
+            </div>
+            <div class="sub-section">
+              <label class="small-label">Category</label>
+              <select id="emojiCategory" class="small-select" onchange="filterEmojis()">
+                <option value="all">All</option>
+                <option value="characters">👤 Characters</option>
+                <option value="monsters">👹 Monsters</option>
+                <option value="weapons">⚔️ Weapons</option>
+                <option value="treasures">💰 Treasures</option>
+                <option value="magic">✨ Magic</option>
+                <option value="environment">🏰 Environment</option>
+                <option value="furniture">🪑 Furniture</option>
+                <option value="food">🍖 Food</option>
+                <option value="symbols">⭐ Symbols</option>
+                <option value="nature">🌳 Nature</option>
+              </select>
+            </div>
+            <div class="sub-section">
+              <div class="emoji-grid" id="emojiGrid"></div>
+            </div>
+            <div class="sub-section">
+              <label class="small-label">Tools</label>
+              <div class="obj-tools">
+                <button class="toolbar-btn active" id="objToolPlace" onclick="setObjTool('place')">📌 Place</button>
+                <button class="toolbar-btn" id="objToolMove" onclick="setObjTool('moveEmoji')">✋ Move</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIGHT TOOLS -->
+          <div class="tool-panel" id="panel-light" style="display:none">
+            <h4 class="panel-title">Lighting</h4>
+            <div class="sub-section">
+              <label class="small-label">Ambient Light</label>
+              <input type="range" id="ambientLight" min="0" max="100" value="100" oninput="updateAmbientLight(+this.value)">
+              <span id="ambientValue" class="small-label" style="float:right">100%</span>
+            </div>
+            <div class="sub-section">
+              <label class="small-label">Source</label>
+              <div class="light-list">
+                <button class="light-option active" data-light="torch" onclick="selectLightType('torch',this)">🔥 Torch <small>R:3</small></button>
+                <button class="light-option" data-light="candle" onclick="selectLightType('candle',this)">🕯️ Candle <small>R:1</small></button>
+                <button class="light-option" data-light="lantern" onclick="selectLightType('lantern',this)">🏮 Lantern <small>R:5</small></button>
+                <button class="light-option" data-light="bonfire" onclick="selectLightType('bonfire',this)">🔥 Bonfire <small>R:7</small></button>
+                <button class="light-option" data-light="moonlight" onclick="selectLightType('moonlight',this)">🌙 Moonlight <small>R:6</small></button>
+                <button class="light-option" data-light="daylight" onclick="selectLightType('daylight',this)">☀️ Daylight <small>R:8</small></button>
+              </div>
+              <button class="toolbar-btn" style="width:100%;margin-top:6px" onclick="clearLights()">🗑️ Clear Lights</button>
+            </div>
+          </div>
+
+          <!-- ERASE PANEL -->
+          <div class="tool-panel" id="panel-erase" style="display:none">
+            <h4 class="panel-title">Erase</h4>
+            <div class="fog-tools" style="margin-bottom:6px">
+              <button class="toolbar-btn active" id="eraseBrushBtn" onclick="setEraseMode('brush')">🖌️ Brush</button>
+              <button class="toolbar-btn" id="eraseRectBtn" onclick="setEraseMode('fillRect')">⬜ Fill Rect</button>
+            </div>
+            <p class="small-hint">Click a cell to erase its content (floor, walls, objects, notes, labels).</p>
+          </div>
+
+          <!-- DM NOTES / LABELS (always visible in build) -->
+          <div class="sidebar-section" style="margin-top:12px;border-top:1px solid #3a3a58;padding-top:10px">
+            <label class="small-label">Annotations</label>
+            <button class="toolbar-btn" style="width:100%;margin-bottom:4px" onclick="setBuildTool('note')">📝 DM Note</button>
+            <button class="toolbar-btn" style="width:100%" onclick="setBuildTool('label')">🏷️ Zone Label</button>
+          </div>
+
+          <!-- FX SECTION -->
+          <div class="sidebar-section" style="margin-top:12px;border-top:1px solid #3a3a58;padding-top:10px">
+            <label class="small-label">Visual Effects</label>
+            <div class="fx-toggles">
+              <label class="toggle-row"><input type="checkbox" id="fxFog" onchange="toggleFX('fog')"> 🌫️ Fog</label>
+              <div class="fx-controls" id="fxFogControls" style="display:none">
+                <label>Density <input type="range" id="fxFogDensity" min="1" max="100" value="40" class="small-range"></label>
+                <label>Color <input type="color" id="fxFogColor" value="#888888" class="small-color"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxParticles" onchange="toggleFX('particles')"> 🌧️ Particles</label>
+              <div class="fx-controls" id="fxParticlesControls" style="display:none">
+                <label>Style
+                  <select id="fxParticleStyle" class="small-select">
+                    <option value="rain">Rain</option>
+                    <option value="snow">Snow</option>
+                    <option value="embers">Embers</option>
+                  </select>
+                </label>
+                <label>Count <input type="range" id="fxParticleCount" min="20" max="300" value="100" class="small-range"></label>
+                <label>Speed <input type="range" id="fxParticleSpeed" min="1" max="10" value="5" class="small-range"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxVignette" onchange="toggleFX('vignette')"> 🔲 Vignette</label>
+              <div class="fx-controls" id="fxVignetteControls" style="display:none">
+                <label>Intensity <input type="range" id="fxVignetteIntensity" min="1" max="100" value="50" class="small-range"></label>
+                <label>Color <input type="color" id="fxVignetteColor" value="#000000" class="small-color"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxLightning" onchange="toggleFX('lightning')"> ⚡ Lightning</label>
+              <div class="fx-controls" id="fxLightningControls" style="display:none">
+                <label>Frequency <input type="range" id="fxLightningFreq" min="1" max="10" value="3" class="small-range"></label>
+                <label>Intensity <input type="range" id="fxLightningIntensity" min="10" max="100" value="60" class="small-range"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxSunrays" onchange="toggleFX('sunrays')"> ☀️ Sunrays</label>
+              <div class="fx-controls" id="fxSunraysControls" style="display:none">
+                <label>Intensity <input type="range" id="fxSunraysIntensity" min="10" max="100" value="40" class="small-range"></label>
+                <label>Color <input type="color" id="fxSunraysColor" value="#ffdd88" class="small-color"></label>
+                <label>Angle <input type="range" id="fxSunraysAngle" min="0" max="360" value="45" class="small-range"></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── PLAY MODE SIDEBAR ─── -->
+        <div class="sidebar-content play-only" id="playSidebar" style="display:none">
+
+          <!-- Fog tools -->
+          <div class="sidebar-section">
+            <h4 class="panel-title">Fog of War</h4>
+            <div class="fog-action-btns">
+              <button class="toolbar-btn active" id="fogRevealBtn" onclick="setFogAction('reveal')">👁️ Reveal</button>
+              <button class="toolbar-btn" id="fogHideBtn" onclick="setFogAction('fog')">🌫️ Hide</button>
+            </div>
+            <div class="fog-tools" style="margin-top:6px">
+              <button class="toolbar-btn active" id="fogBrushBtn" onclick="setPlayTool('fogBrush')">🖌️ Brush</button>
+              <button class="toolbar-btn" id="fogRectBtn" onclick="setPlayTool('fogRect')">⬜ Rectangle</button>
+            </div>
+            <div class="sub-section" id="brushSizeSection">
+              <label class="small-label">Brush Size</label>
+              <input type="range" id="brushSize" min="1" max="15" value="3" class="small-range" oninput="document.getElementById('brushSizeLabel').textContent=this.value">
+              <span id="brushSizeLabel" class="small-label" style="float:right">3</span>
+            </div>
+            <div style="display:flex;gap:4px;margin-top:6px">
+              <button class="toolbar-btn" style="flex:1" onclick="clearFog()">☁️ Full Fog</button>
+              <button class="toolbar-btn" style="flex:1" onclick="revealAllFog()">☀️ Reveal All</button>
+            </div>
+          </div>
+
+          <!-- Token tools -->
+          <div class="sidebar-section" style="margin-top:12px;border-top:1px solid #3a3a58;padding-top:10px">
+            <h4 class="panel-title">Tokens</h4>
+            <div class="fog-tools">
+              <button class="toolbar-btn" id="playTokenBtn" onclick="setPlayTool('token')">📌 Place</button>
+              <button class="toolbar-btn" id="playMoveBtn" onclick="setPlayTool('moveToken')">✋ Move / Inspect</button>
+            </div>
+            <!-- Token creation -->
+            <div class="sub-section" style="margin-top:8px">
+              <div class="token-create-row">
+                <input type="text" id="tokenEmoji" placeholder="🎮" class="toolbar-input" style="width:36px;text-align:center;font-size:16px" maxlength="2">
+                <input type="text" id="tokenLabel" placeholder="Name" class="toolbar-input" style="flex:1">
+                <select id="tokenSize" class="small-select" style="width:48px">
+                  <option value="1">1×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2×</option>
+                  <option value="3">3×</option>
+                </select>
+              </div>
+              <div class="token-create-row" style="margin-top:4px">
+                <label class="small-label" style="margin-right:4px">HP</label>
+                <input type="number" id="tokenHP" placeholder="0" class="toolbar-input" style="width:44px" min="0">
+                <span style="color:#555">/</span>
+                <input type="number" id="tokenMaxHP" placeholder="0" class="toolbar-input" style="width:44px" min="0">
+                <label class="toggle-row" style="margin-left:8px"><input type="checkbox" id="tokenVisible" checked> Visible</label>
+              </div>
+              <button class="toolbar-btn" style="width:100%;margin-top:4px" onclick="addTokenToLibrary()">+ Add to Library</button>
+            </div>
+            <!-- Token library -->
+            <div class="sub-section">
+              <label class="small-label">Library</label>
+              <div class="token-library" id="tokenLibrary"></div>
+              <span id="selectedTokenLabel" class="small-hint">No token selected</span>
+            </div>
+          </div>
+
+          <!-- Measure -->
+          <div class="sidebar-section" style="margin-top:12px;border-top:1px solid #3a3a58;padding-top:10px">
+            <button class="toolbar-btn" style="width:100%" id="measureBtn" onclick="setPlayTool('measure')">📏 Measure</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ CANVAS AREA ═══ -->
+      <div class="canvas-area" id="canvasArea">
+        <div id="dropOverlay" class="drop-overlay">
+          <span>📄 Drop an image here</span>
+        </div>
+        <div class="canvas-wrapper" id="canvasWrapper">
+          <canvas id="mainCanvas"></canvas>
+          <canvas id="overlayCanvas"></canvas>
+          <canvas id="fxCanvas"></canvas>
+          <div id="canvasHint" class="canvas-hint">
+            <p>🗺️ Create a grid or import an image to get started</p>
+          </div>
+          <div id="dicePopup" class="dice-popup"></div>
+        </div>
+        <!-- Minimap -->
+        <div class="minimap-container" id="minimapContainer" style="display:none">
+          <canvas id="minimapCanvas" width="180" height="135"></canvas>
+        </div>
+      </div>
+
+      <!-- ═══ RIGHT PANEL ═══ -->
+      <div class="right-panel" id="rightPanel">
+
+        <!-- BUILD: Properties -->
+        <div class="right-content build-only" id="rightBuild">
+          <h4 class="panel-title">Properties</h4>
+          <div id="propsContent">
+            <p class="small-hint">Select an element on the map to view its properties.</p>
+          </div>
+        </div>
+
+        <!-- PLAY: Tokens + Initiative + Dice (tabbed) -->
+        <div class="right-content play-only" id="rightPlay" style="display:none">
+
+          <!-- TAB BAR -->
+          <div class="play-tabs">
+            <button class="play-tab active" id="tabTokens" onclick="setPlayTab('tokens')">📌 Tokens</button>
+            <button class="play-tab" id="tabInit" onclick="setPlayTab('init')">⚔️ Initiative</button>
+            <button class="play-tab" id="tabDice" onclick="setPlayTab('dice')">🎲 Dice</button>
+          </div>
+
+          <!-- ─── TAB: TOKENS ─── -->
+          <div class="play-tab-content" id="tabContentTokens">
+            <!-- Placed tokens -->
+            <div class="right-section">
+              <h4 class="panel-title">Tokens on Map</h4>
+              <div id="placedTokensList"></div>
+              <p class="small-hint" id="noTokensHint">No tokens placed. Use the 📌 tool in the sidebar.</p>
+            </div>
+
+            <!-- Token editor -->
+            <div class="right-section token-editor-card" id="tokenEditor" style="display:none">
+              <div class="token-editor-header">
+                <span id="tokenEditName">—</span>
+                <button class="toolbar-btn icon-btn" onclick="closeTokenEditor()">✕</button>
+              </div>
+              <div class="token-edit-fields">
+                <div class="edit-row">
+                  <label class="small-label">Label</label>
+                  <input type="text" id="editLabel" class="toolbar-input" style="width:100%" oninput="editTokenProp('l',this.value)">
+                </div>
+                <div class="edit-row">
+                  <label class="small-label">HP</label>
+                  <div class="token-create-row">
+                    <input type="number" id="editHP" class="toolbar-input" style="width:56px" oninput="editTokenProp('hp',+this.value)">
+                    <span style="color:#555">/</span>
+                    <input type="number" id="editMaxHP" class="toolbar-input" style="width:56px" oninput="editTokenProp('maxHp',+this.value)">
+                  </div>
+                </div>
+                <div class="edit-row">
+                  <label class="toggle-row"><input type="checkbox" id="editVisible" onchange="editTokenProp('visible',this.checked)"> Visible to players</label>
+                </div>
+                <div class="edit-row">
+                  <label class="small-label">Tags <span style="color:#4a4a6a;font-weight:normal">(comma-separated)</span></label>
+                  <input type="text" id="editTags" class="toolbar-input" style="width:100%" placeholder="poisoned, slowed…" oninput="editTokenProp('tags',this.value)">
+                  <div class="tag-pills" id="tagPills"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── TAB: INITIATIVE ─── -->
+          <div class="play-tab-content" id="tabContentInit" style="display:none">
+            <div class="right-section">
+              <h4 class="panel-title">Initiative Order</h4>
+              <div class="init-add-row">
+                <input type="text" id="initName" placeholder="Name" class="toolbar-input" style="flex:1">
+                <input type="number" id="initScore" placeholder="Init" class="toolbar-input" style="width:50px">
+                <button class="toolbar-btn" onclick="addInitiative()">+</button>
+              </div>
+              <div id="initList" class="init-list-container"></div>
+              <div class="init-controls">
+                <button class="toolbar-btn init-next-btn" onclick="nextInitiative()">▶ Next</button>
+                <button class="toolbar-btn" onclick="resetInitiative()" title="Reset">↺</button>
+                <span id="initRound" class="init-round-badge">Round 1</span>
+              </div>
+              <p class="small-hint">Link a token to each entry via the dropdown.</p>
+            </div>
+          </div>
+
+          <!-- ─── TAB: DICE ─── -->
+          <div class="play-tab-content" id="tabContentDice" style="display:none">
+            <div class="right-section">
+              <h4 class="panel-title">Dice Roller</h4>
+              <div class="dice-quick-btns">
+                <button class="dice-btn" onclick="rollDice(4)">d4</button>
+                <button class="dice-btn" onclick="rollDice(6)">d6</button>
+                <button class="dice-btn" onclick="rollDice(8)">d8</button>
+                <button class="dice-btn" onclick="rollDice(10)">d10</button>
+                <button class="dice-btn" onclick="rollDice(12)">d12</button>
+                <button class="dice-btn" onclick="rollDice(20)">d20</button>
+                <button class="dice-btn" onclick="rollDice(100)">d100</button>
+              </div>
+              <div class="dice-custom-row">
+                <input type="number" id="diceCount" value="1" min="1" max="20" class="toolbar-input" style="width:40px">
+                <span class="small-label">d</span>
+                <input type="number" id="diceFaces" value="20" min="2" class="toolbar-input" style="width:44px">
+                <span class="small-label">+</span>
+                <input type="number" id="diceMod" value="0" class="toolbar-input" style="width:40px">
+                <button class="toolbar-btn" onclick="rollCustomDice()">🎲</button>
+              </div>
+              <div class="dice-log" id="diceLog"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MODALS ═══ -->
+
+    <!-- Note Modal -->
+    <div class="modal-overlay" id="noteModal">
+      <div class="modal-card">
+        <h3 id="noteModalTitle">📝 DM Note</h3>
+        <div class="note-icons">
+          <button class="note-icon-btn selected" data-icon="📝" onclick="selectNoteIcon(this)">📝</button>
+          <button class="note-icon-btn" data-icon="⚠️" onclick="selectNoteIcon(this)">⚠️</button>
+          <button class="note-icon-btn" data-icon="❓" onclick="selectNoteIcon(this)">❓</button>
+          <button class="note-icon-btn" data-icon="🔑" onclick="selectNoteIcon(this)">🔑</button>
+          <button class="note-icon-btn" data-icon="💀" onclick="selectNoteIcon(this)">💀</button>
+          <button class="note-icon-btn" data-icon="⭐" onclick="selectNoteIcon(this)">⭐</button>
+          <button class="note-icon-btn" data-icon="🎯" onclick="selectNoteIcon(this)">🎯</button>
+          <button class="note-icon-btn" data-icon="🗝️" onclick="selectNoteIcon(this)">🗝️</button>
+          <button class="note-icon-btn" data-icon="📜" onclick="selectNoteIcon(this)">📜</button>
+          <button class="note-icon-btn" data-icon="🏴" onclick="selectNoteIcon(this)">🏴</button>
+        </div>
+        <textarea id="noteText" rows="4" placeholder="Note visible only to the DM..."></textarea>
+        <div class="modal-actions">
+          <button class="toolbar-btn" onclick="saveNote()">💾 Save</button>
+          <button class="toolbar-btn erase-btn" onclick="deleteNote()">🗑️</button>
+          <button class="toolbar-btn" onclick="closeNoteModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Label Modal -->
+    <div class="modal-overlay" id="labelModal">
+      <div class="modal-card">
+        <h3>🏷️ Zone Label — <span id="labelCellCoord"></span></h3>
+        <input type="text" id="labelText" placeholder="Zone name" class="toolbar-input" style="width:100%;margin-bottom:8px" oninput="updateLabelPreview()">
+        <label class="small-label">Color</label>
+        <input type="color" id="labelColor" value="#ffffff" class="small-color" oninput="updateLabelPreview()">
+        <div id="labelPreview" class="label-preview">Label</div>
+        <div class="modal-actions">
+          <button class="toolbar-btn" onclick="saveLabel()">💾 Save</button>
+          <button class="toolbar-btn erase-btn" onclick="deleteLabel()">🗑️</button>
+          <button class="toolbar-btn" onclick="closeLabelModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+      <div class="modal-card">
+        <h3>⚙️ Settings</h3>
+        <div class="settings-grid">
+          <label class="small-label">Grid Color</label>
+          <input type="color" id="gridColor" value="#ffffff" class="small-color">
+          <label class="small-label">Grid Opacity</label>
+          <input type="range" id="gridOpacity" min="0" max="100" value="20" class="small-range" oninput="document.getElementById('gridOpacityLabel').textContent=this.value+'%'">
+          <span id="gridOpacityLabel" class="small-label">20%</span>
+          <label class="small-label">Fog Opacity (DM)</label>
+          <input type="range" id="fogDmOpacity" min="10" max="100" value="95" class="small-range" oninput="document.getElementById('fogDmOpacityLabel').textContent=this.value+'%'">
+          <span id="fogDmOpacityLabel" class="small-label">95%</span>
+          <label class="small-label">Peek Opacity</label>
+          <input type="range" id="peekOpacity" min="5" max="90" value="15" class="small-range" oninput="document.getElementById('peekOpacityLabel').textContent=this.value+'%'">
+          <span id="peekOpacityLabel" class="small-label">15%</span>
+          <label class="small-label">DM-only Tokens (opacity)</label>
+          <input type="range" id="dmTokenOpacity" min="20" max="100" value="60" class="small-range" oninput="document.getElementById('dmTokenOpacityLabel').textContent=this.value+'%'">
+          <span id="dmTokenOpacityLabel" class="small-label">60%</span>
+        </div>
+        <div class="modal-actions">
+          <button class="toolbar-btn" onclick="closeSettings()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shortcuts Modal -->
+    <div class="modal-overlay" id="shortcutsModal">
+      <div class="modal-card" style="max-width:500px">
+        <h3>⌨️ Keyboard Shortcuts</h3>
+        <div class="shortcuts-grid">
+          <div class="shortcut-group">
+            <h5>General</h5>
+            <div class="sc"><kbd>B</kbd> Build Mode</div>
+            <div class="sc"><kbd>P</kbd> Play Mode</div>
+            <div class="sc"><kbd>Ctrl+Z</kbd> Undo</div>
+            <div class="sc"><kbd>Ctrl+Y</kbd> Redo</div>
+            <div class="sc"><kbd>Ctrl+S</kbd> Save</div>
+            <div class="sc"><kbd>G</kbd> Toggle Grid</div>
+            <div class="sc"><kbd>Space+Drag</kbd> Pan</div>
+            <div class="sc"><kbd>Ctrl+Scroll</kbd> Zoom</div>
+            <div class="sc"><kbd>Escape</kbd> Cancel Action</div>
+          </div>
+          <div class="shortcut-group">
+            <h5>Build</h5>
+            <div class="sc"><kbd>1</kbd> Floor</div>
+            <div class="sc"><kbd>2</kbd> Walls</div>
+            <div class="sc"><kbd>3</kbd> Objects</div>
+            <div class="sc"><kbd>4</kbd> Lights</div>
+            <div class="sc"><kbd>5</kbd> Erase</div>
+          </div>
+          <div class="shortcut-group">
+            <h5>Play</h5>
+            <div class="sc"><kbd>R</kbd> Brush fog</div>
+            <div class="sc"><kbd>X</kbd> Rectangle fog</div>
+            <div class="sc"><kbd>T</kbd> Token</div>
+            <div class="sc"><kbd>M</kbd> Move / Inspect</div>
+            <div class="sc"><kbd>D</kbd> Measure</div>
+            <div class="sc"><kbd>V</kbd> Peek mode</div>
+            <div class="sc"><kbd>N</kbd> Next initiative</div>
+            <div class="sc"><kbd>F</kbd> Toggle reveal/fog</div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="toolbar-btn" onclick="closeShortcuts()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal-overlay" id="exportModal">
+      <div class="modal-card">
+        <h3>📸 Export PNG</h3>
+        <p class="small-hint">Choose export type:</p>
+        <div class="modal-actions" style="flex-direction:column;gap:8px">
+          <button class="toolbar-btn" style="width:100%" onclick="doExportPNG('dm')">🔍 DM View (semi-transparent fog)</button>
+          <button class="toolbar-btn" style="width:100%" onclick="doExportPNG('player')">👁️ Player View (opaque fog)</button>
+          <button class="toolbar-btn" style="width:100%" onclick="closeExportModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+      <button onclick="ctxNote()">📝 DM Note</button>
+      <button onclick="ctxLabel()">🏷️ Zone Label</button>
+      <button onclick="ctxErase()">🧹 Erase</button>
+      <button onclick="ctxMeasure()">📏 Measure from here</button>
+    </div>
+  </div>
+
+  <script src="js/map-beta.js"></script>
+</body>
+</html>

@@ -1,0 +1,276 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fog of War — DM Tool</title>
+<link rel="stylesheet" href="css/shared.css">
+<link rel="stylesheet" href="css/map-hider.css">
+</head>
+<body>
+<div class="container">
+
+<div class="top-toolbar">
+  <button class="toolbar-btn icon-btn" onclick="location.href='index.html'" title="Menu principal">&#x1F3E0;</button>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-brand">&#x1F32B;&#xFE0F; <span>Fog of War</span></div>
+  <div class="toolbar-divider"></div>
+  <button class="toolbar-btn icon-btn" onclick="document.getElementById('fu').click()" title="Charger image">&#x1F4C1;</button>
+  <input type="file" id="fu" accept="image/*" style="display:none" onchange="loadImg(event)">
+  <div class="toolbar-divider"></div>
+  <button id="b-reveal" class="action-btn active" onclick="setAction('reveal')" title="R&#xE9;v&#xE9;ler (R)">&#x1F441;&#xFE0F; R&#xE9;v&#xE9;ler</button>
+  <button id="b-fog" class="action-btn sec" onclick="setAction('fog')" title="Cacher (F)">&#x1F32B;&#xFE0F; Cacher</button>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-section" style="gap:2px">
+    <button id="b-brush" class="tool-btn active" onclick="setTool('brush')" title="Pinceau (B)">&#x1F58C;&#xFE0F;</button>
+    <button id="b-rect" class="tool-btn sec" onclick="setTool('rect')" title="Rectangle (X)">&#x2B1C;</button>
+    <button id="b-token" class="tool-btn sec" onclick="setTool('token')" title="Token (T)">&#x1F9E9;</button>
+    <button id="b-move" class="tool-btn sec" onclick="setTool('move')" title="Move (M)">&#x270B;</button>
+    <button id="b-inspect" class="tool-btn sec" onclick="setTool('inspect')" title="Inspecter token (I)">&#x1F50D;</button>
+    <button id="b-measure" class="tool-btn sec" onclick="setTool('measure')" title="Mesure (D)">&#x1F4CF;</button>
+  </div>
+  <div class="toolbar-section" id="brush-ctrl" style="display:none">
+    <input type="range" id="brs" min="1" max="15" value="2" oninput="document.getElementById('br-v').textContent=this.value" style="width:60px">
+    <span class="val-label" id="br-v">2</span>
+  </div>
+  <div class="toolbar-divider"></div>
+  <button class="toolbar-btn icon-btn" onclick="clearFog()" title="Tout couvrir">&#x2601;&#xFE0F;</button>
+  <button class="toolbar-btn icon-btn" onclick="revealAll()" title="Tout r&#xE9;v&#xE9;ler">&#x2600;&#xFE0F;</button>
+  <div class="toolbar-divider"></div>
+  <button class="toolbar-btn icon-btn" onclick="openPlayerView()" title="Vue Joueur (2&#xE8;me &#xE9;cran)">&#x1F4FA;</button>
+  <button id="b-peek" class="toolbar-btn icon-btn" onclick="togglePeek()" title="Mode DM — voir &#xE0; travers le brouillard (V)">&#x1F440;</button>
+  <div class="toolbar-divider"></div>
+  <div class="toolbar-dropdown">
+    <button class="toolbar-btn icon-btn" onclick="togglePanel('settings-panel')" title="Param&#xE8;tres">&#x2699;&#xFE0F;</button>
+    <div class="toolbar-panel" id="settings-panel">
+      <div class="panel-title">&#x2699;&#xFE0F; Param&#xE8;tres</div>
+      <div class="panel-row"><label>Grille</label><input type="number" id="gs" value="40" min="10" max="200" onchange="redraw()" style="width:50px"><span style="font-size:11px;color:#888">px</span><input type="color" id="gc" value="#ffffff" onchange="redraw()"></div>
+      <div class="panel-row"><label>Opacit&#xE9; grille</label><input type="range" id="go" min="0" max="100" value="30" oninput="document.getElementById('go-v').textContent=this.value+'%';redraw()"><span class="val-label" id="go-v">30%</span></div>
+      <div class="panel-row"><label>Brouillard</label><input type="range" id="fog-opacity" min="10" max="100" value="95" oninput="document.getElementById('fo-v').textContent=this.value+'%';redraw()"><span class="val-label" id="fo-v">95%</span></div>
+      <div class="panel-row"><label>Fog DM 👀</label><input type="range" id="peek-opacity" min="5" max="90" value="15" oninput="document.getElementById('po-v').textContent=this.value+'%';if(dmPeek)redraw()"><span class="val-label" id="po-v">15%</span></div>
+      <div class="panel-row"><label>Tokens DM</label><input type="range" id="dm-tok-opacity" min="20" max="100" value="60" oninput="document.getElementById('dto-v').textContent=this.value+'%';redraw()"><span class="val-label" id="dto-v">60%</span></div>
+    </div>
+  </div>
+  <div class="toolbar-dropdown">
+    <button class="toolbar-btn icon-btn" onclick="togglePanel('session-panel')" title="Session">&#x1F4BE;</button>
+    <div class="toolbar-panel" id="session-panel">
+      <div class="panel-title">&#x1F4BE; Session</div>
+      <button class="toolbar-btn panel-action" onclick="saveSession();closeAllPanels()">&#x1F4BE; Sauvegarder (Ctrl+S)</button>
+      <button class="toolbar-btn panel-action" onclick="document.getElementById('load-fu').click()">&#x1F4C2; Charger session</button>
+      <input type="file" id="load-fu" accept=".json" style="display:none" onchange="loadSession(event)">
+      <button class="toolbar-btn panel-action" onclick="exportPNG();closeAllPanels()">&#x1F4F8; Export PNG</button>
+    </div>
+  </div>
+  <button class="toolbar-btn icon-btn" onclick="toggleShortcuts()" title="Raccourcis clavier (?)">&#x2328;&#xFE0F;</button>
+  <div class="toolbar-divider"></div>
+  <span class="mi" id="ml"></span>
+</div>
+
+<div id="main">
+  <div id="ca">
+    <div id="drop-overlay"><div class="drop-icon">&#x1F5FA;&#xFE0F;</div><div>D&#xE9;posez votre carte ici</div></div>
+    <div id="cw">
+      <canvas id="mc"></canvas>
+      <canvas id="oc" onmousedown="md(event)" onmousemove="mm(event)" onmouseup="mu(event)" onmouseleave="mu(event)" ondblclick="dblClick(event)"></canvas>
+      <div id="hint" onclick="document.getElementById('fu').click()">
+        <div style="font-size:60px">&#x1F5FA;&#xFE0F;</div>
+        <p>Chargez une image de carte</p>
+        <p class="hint-sub">Cliquez ici ou glissez-d&#xE9;posez</p>
+      </div>
+    </div>
+    <!-- Left panel: placed tokens + edit -->
+    <div id="left-panel" style="display:none">
+      <h3>&#x1F4CD; Sur la carte</h3>
+      <div id="plist"></div>
+      <div id="tok-edit" style="display:none">
+        <div class="left-panel-divider"></div>
+        <div class="tok-edit-header">
+          <span class="tok-edit-title">&#x270F;&#xFE0F; <span id="tok-edit-name"></span></span>
+          <button class="tok-edit-close" onclick="closeTokenEdit()">&#x2715;</button>
+        </div>
+        <div class="ctrl-row">
+          <label>HP</label>
+          <input type="number" id="edit-hp" min="0" max="9999" style="width:50px" oninput="editTokProp('hp',+this.value)">
+          <span class="val-label">/</span>
+          <input type="number" id="edit-maxhp" min="0" max="9999" style="width:50px" oninput="editTokProp('maxHp',+this.value)">
+        </div>
+        <div class="ctrl-row">
+          <label>Label</label>
+          <input type="text" id="edit-label" style="flex:1" oninput="editTokProp('l',this.value)">
+        </div>
+        <div class="ctrl-row">
+          <label class="toggle-label">
+            <input type="checkbox" class="toggle-input" id="edit-vis" onchange="editTokProp('visible',this.checked)">
+            <span class="toggle-track"></span>
+            <span class="toggle-text">Visible joueurs</span>
+          </label>
+        </div>
+        <div class="conditions-grid" id="cond-grid"></div>
+      </div>
+    </div>
+  </div>
+  <div id="sp">
+    <!-- SIDEBAR TABS -->
+    <div class="sidebar-tabs">
+      <button class="stab stab-active" id="tab-tokens" onclick="switchTab('tokens')">&#x1F9E9; Tokens</button>
+      <button class="stab" id="tab-combat" onclick="switchTab('combat')">&#x2694;&#xFE0F; Combat</button>
+    </div>
+
+    <!-- ══ TOKENS TAB ══ -->
+    <div id="panel-tokens" class="tab-panel">
+      <h3>Cr&#xE9;er token</h3>
+      <input type="text" id="te" placeholder="Emoji &#x1F409;" maxlength="4">
+      <input type="text" id="tl" placeholder="Label">
+      <div class="ctrl-row">
+        <select id="tsize">
+          <option value="0.8">Petit</option>
+          <option value="1" selected>Normal</option>
+          <option value="1.5">Grand</option>
+          <option value="2">&#xC9;norme</option>
+        </select>
+        <label class="toggle-label" title="Visible par les joueurs">
+          <input type="checkbox" class="toggle-input" id="t-vis" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-text">Vis.</span>
+        </label>
+      </div>
+      <div class="ctrl-row">
+        <input type="number" id="t-hp" placeholder="HP" min="0" max="9999" style="width:55px">
+        <span class="val-label">/</span>
+        <input type="number" id="t-maxhp" placeholder="Max" min="0" max="9999" style="width:55px">
+      </div>
+      <button class="toolbar-btn" onclick="addLib()" style="width:100%">+ Biblioth&#xE8;que</button>
+
+      <h3>&#x1F4DA; Biblioth&#xE8;que</h3>
+      <div id="lib">
+        <div class="lib-cat">&#x2694;&#xFE0F; Joueurs</div>
+        <div class="ti" data-e="&#x2694;&#xFE0F;" data-l="Guerrier" data-s="1" onclick="selTok(this)">&#x2694;&#xFE0F; Guerrier</div>
+        <div class="ti" data-e="&#x1F9D9;" data-l="Mage" data-s="1" onclick="selTok(this)">&#x1F9D9; Mage</div>
+        <div class="ti" data-e="&#x1F3F9;" data-l="Archer" data-s="1" onclick="selTok(this)">&#x1F3F9; Archer</div>
+        <div class="ti" data-e="&#x1F6E1;&#xFE0F;" data-l="Paladin" data-s="1" onclick="selTok(this)">&#x1F6E1;&#xFE0F; Paladin</div>
+        <div class="ti" data-e="&#x1F5E1;&#xFE0F;" data-l="Voleur" data-s="1" onclick="selTok(this)">&#x1F5E1;&#xFE0F; Voleur</div>
+        <div class="ti" data-e="&#x1F3B5;" data-l="Barde" data-s="1" onclick="selTok(this)">&#x1F3B5; Barde</div>
+
+        <div class="lib-cat">&#x1F480; Monstres</div>
+        <div class="ti" data-e="&#x1F480;" data-l="Squelette" data-s="1" onclick="selTok(this)">&#x1F480; Squelette</div>
+        <div class="ti" data-e="&#x1F479;" data-l="Ogre" data-s="1.5" onclick="selTok(this)">&#x1F479; Ogre</div>
+        <div class="ti" data-e="&#x1F409;" data-l="Dragon" data-s="2" onclick="selTok(this)">&#x1F409; Dragon</div>
+        <div class="ti" data-e="&#x1F577;&#xFE0F;" data-l="Araign&#xE9;e" data-s="1" onclick="selTok(this)">&#x1F577;&#xFE0F; Araign&#xE9;e</div>
+        <div class="ti" data-e="&#x1F43A;" data-l="Loup" data-s="1" onclick="selTok(this)">&#x1F43A; Loup</div>
+        <div class="ti" data-e="&#x1F47B;" data-l="Spectre" data-s="1" onclick="selTok(this)">&#x1F47B; Spectre</div>
+        <div class="ti" data-e="&#x1F9DF;" data-l="Zombie" data-s="1" onclick="selTok(this)">&#x1F9DF; Zombie</div>
+
+        <div class="lib-cat">&#x1F4E6; Objets</div>
+        <div class="ti" data-e="&#x1F4B0;" data-l="Tr&#xE9;sor" data-s="0.8" onclick="selTok(this)">&#x1F4B0; Tr&#xE9;sor</div>
+        <div class="ti" data-e="&#x1F525;" data-l="Feu" data-s="0.8" onclick="selTok(this)">&#x1F525; Feu</div>
+        <div class="ti" data-e="&#x1F6AA;" data-l="Porte" data-s="0.8" onclick="selTok(this)">&#x1F6AA; Porte</div>
+        <div class="ti" data-e="&#x26A0;&#xFE0F;" data-l="Pi&#xE8;ge" data-s="0.8" onclick="selTok(this)">&#x26A0;&#xFE0F; Pi&#xE8;ge</div>
+        <div class="ti" data-e="&#x2753;" data-l="Myst&#xE8;re" data-s="1" onclick="selTok(this)">&#x2753; Myst&#xE8;re</div>
+        <div class="ti" data-e="&#x1F5DD;&#xFE0F;" data-l="Cl&#xE9;" data-s="0.8" onclick="selTok(this)">&#x1F5DD;&#xFE0F; Cl&#xE9;</div>
+        <div class="ti" data-e="&#x1F4DC;" data-l="Parchemin" data-s="0.8" onclick="selTok(this)">&#x1F4DC; Parchemin</div>
+
+        <div class="lib-cat">&#x1F3F0; Lieux</div>
+        <div class="ti" data-e="&#x1F3F0;" data-l="Ch&#xE2;teau" data-s="1.5" onclick="selTok(this)">&#x1F3F0; Ch&#xE2;teau</div>
+        <div class="ti" data-e="&#x26FA;" data-l="Camp" data-s="1" onclick="selTok(this)">&#x26FA; Camp</div>
+        <div class="ti" data-e="&#x26EA;" data-l="Temple" data-s="1" onclick="selTok(this)">&#x26EA; Temple</div>
+      </div>
+
+      <h3>&#x2705; S&#xE9;lectionn&#xE9;</h3>
+      <div id="sb">Aucun</div>
+
+    </div>
+
+    <!-- ══ COMBAT TAB ══ -->
+    <div id="panel-combat" class="tab-panel" style="display:none">
+      <h3>&#x2694;&#xFE0F; Tracker d'initiative</h3>
+      <p class="panel-desc">G&#xE9;rez l'ordre de combat. Liez les combattants aux tokens sur la carte.</p>
+      <div class="ctrl-row">
+        <input type="text" id="init-name" placeholder="Nom du combattant" style="flex:1">
+      </div>
+      <div class="ctrl-row">
+        <input type="number" id="init-score" placeholder="Score init." min="0" max="99" style="flex:1">
+        <button class="toolbar-btn" onclick="addInit()" style="padding:3px 10px;height:28px">+ Ajouter</button>
+      </div>
+      <div id="init-list"></div>
+      <div class="ctrl-row" style="margin-top:6px">
+        <button class="toolbar-btn" onclick="nextInit()" style="flex:1;height:30px">&#x25B6; Tour suivant (N)</button>
+        <button class="toolbar-btn" onclick="resetInit()" style="height:30px" title="Nouveau combat">&#x1F504;</button>
+      </div>
+      <div id="init-round" class="round-badge">Round 1</div>
+
+      <h3>&#x1F3B2; Lanceur de d&#xE9;s</h3>
+      <div class="dice-bar">
+        <button class="dice-btn" onclick="rollDice(4)">d4</button>
+        <button class="dice-btn" onclick="rollDice(6)">d6</button>
+        <button class="dice-btn" onclick="rollDice(8)">d8</button>
+        <button class="dice-btn" onclick="rollDice(10)">d10</button>
+        <button class="dice-btn" onclick="rollDice(12)">d12</button>
+        <button class="dice-btn" onclick="rollDice(20)">d20</button>
+        <button class="dice-btn dice-btn-100" onclick="rollDice(100)">d100</button>
+      </div>
+      <div class="ctrl-row" style="margin-top:4px">
+        <input type="number" id="dice-count" value="1" min="1" max="99" style="width:40px" title="Nombre de d&#xE9;s">
+        <span class="val-label">d</span>
+        <input type="number" id="dice-faces" value="20" min="2" max="100" style="width:40px" title="Faces">
+        <span class="val-label">+</span>
+        <input type="number" id="dice-mod" value="0" min="-999" max="999" style="width:40px" title="Modificateur">
+        <button class="toolbar-btn" onclick="rollCustomDice()" style="padding:3px 10px;height:28px">&#x1F3B2; Lancer</button>
+      </div>
+      <div id="dice-log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SHORTCUTS MODAL -->
+<div class="modal-overlay" id="shortcuts-modal">
+  <div class="modal-box" style="width:460px">
+    <div class="modal-header">
+      <span class="modal-title">&#x2328;&#xFE0F; Raccourcis clavier</span>
+      <button class="modal-close" onclick="toggleShortcuts()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="shortcut-grid">
+        <div class="sc-cat">Actions</div>
+        <div class="sc"><kbd>R</kbd> R&#xE9;v&#xE9;ler</div>
+        <div class="sc"><kbd>F</kbd> Cacher</div>
+        <div class="sc-cat">Outils</div>
+        <div class="sc"><kbd>B</kbd> Pinceau</div>
+        <div class="sc"><kbd>X</kbd> Rectangle</div>
+        <div class="sc"><kbd>T</kbd> Token</div>
+        <div class="sc"><kbd>M</kbd> Move</div>
+        <div class="sc"><kbd>I</kbd> Inspecter</div>
+        <div class="sc"><kbd>D</kbd> Mesure</div>
+        <div class="sc-cat">Session</div>
+        <div class="sc"><kbd>Ctrl+Z</kbd> Annuler</div>
+        <div class="sc"><kbd>Ctrl+S</kbd> Sauvegarder</div>
+        <div class="sc-cat">Navigation</div>
+        <div class="sc"><kbd>Espace+Drag</kbd> Pan</div>
+        <div class="sc"><kbd>Ctrl+Molette</kbd> Zoom</div>
+        <div class="sc-cat">Vue DM</div>
+        <div class="sc"><kbd>V</kbd> Mode DM (voir fog)</div>
+        <div class="sc-cat">Combat</div>
+        <div class="sc"><kbd>N</kbd> Tour suivant</div>
+        <div class="sc"><kbd>Esc</kbd> Fermer / Annuler</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="export-modal">
+  <div class="modal-box" style="width:340px">
+    <div class="modal-header">
+      <span class="modal-title">&#x1F4F8; Export PNG</span>
+      <button class="modal-close" onclick="document.getElementById('export-modal').classList.remove('visible')">&times;</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+      <button class="toolbar-btn" onclick="doExport('dm')" style="width:100%;justify-content:center">&#x1F9D9; Vue DM (tout)</button>
+      <button class="toolbar-btn" onclick="doExport('player')" style="width:100%;justify-content:center">&#x1F441;&#xFE0F; Vue Joueur (fog opaque)</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /.container -->
+<script src="js/map-hider.js"></script>
+</body>
+</html>

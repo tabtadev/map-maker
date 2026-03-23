@@ -1,0 +1,604 @@
+/* ═══════════════════════════════════════════════════════════
+   MAP-HIDER.CSS — Fog of War DM Tool
+   Palette alignée sur Map Maker (indigo/violet)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── LAYOUT ─── */
+#main {
+    flex: 1; display: flex; overflow: hidden; min-height: 0;
+}
+
+#ca {
+    flex: 1; overflow: auto; background: #1c1c2e;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 16px; position: relative;
+}
+
+#cw { position: relative; display: inline-block; }
+
+#mc {
+    display: block;
+    border: 1px solid #4a4a70;
+    background: #2a2a45;
+}
+#oc {
+    display: block;
+    background: transparent;
+    position: absolute; top: 0; left: 0;
+    cursor: crosshair;
+}
+
+/* ─── SIDEBAR ─── */
+#sp {
+    width: 220px;
+    background: #22223a;
+    border-left: 1px solid #32325a;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+#sp h3 {
+    font-size: 9px;
+    font-weight: 700;
+    color: #6666aa;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 6px 0 4px;
+    border-bottom: 1px solid #2d2d50;
+    margin: 0;
+}
+#sp h3.collapsible {
+    cursor: pointer;
+    user-select: none;
+}
+#sp h3.collapsible:hover {
+    color: #a5b4fc;
+}
+.collapse-arrow {
+    float: right;
+    font-size: 8px;
+    transition: transform 0.2s;
+}
+.collapse-arrow.collapsed {
+    transform: rotate(-90deg);
+}
+
+/* ─── DYNAMICALLY SWAPPED CLASSES (setAction / setTool) ─── */
+button.active {
+    padding: 7px 12px;
+    background: linear-gradient(135deg, #667eea18, #764ba218);
+    border: 1px solid #667eea88;
+    color: #a5b4fc;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: bold;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+button.sec {
+    padding: 7px 12px;
+    background: #2a2a45;
+    border: 1px solid #3a3a60;
+    color: #8888bb;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 11px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+button.sec:hover {
+    background: #323255;
+    border-color: #667eea44;
+    color: #bbb;
+}
+
+/* ─── TOOL BUTTONS (.ti) ─── */
+.ti {
+    display: block; width: 100%;
+    padding: 6px 10px; text-align: left;
+    background: #2a2a45; border: 1px solid #3a3a60;
+    color: #8888bb; cursor: pointer;
+    border-radius: 5px; font-size: 11px;
+    transition: all 0.15s;
+}
+.ti:hover { background: #323255; border-color: #667eea44; color: #bbb; }
+.ti.sel { background: #667eea14; border-color: #667eea66; color: #a5b4fc; }
+
+/* ─── LIBRARY CATEGORIES ─── */
+.lib-cat {
+    font-size: 9px;
+    font-weight: 700;
+    color: #555580;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 8px 0 3px;
+    margin: 0;
+}
+.lib-cat:first-child { padding-top: 2px; }
+
+#lib {
+    display: flex; flex-direction: column; gap: 3px;
+    max-height: 320px; overflow-y: auto;
+}
+
+/* ─── TOKEN PANEL ─── */
+#plist {
+    display: flex; flex-direction: column; gap: 3px;
+    max-height: 200px; overflow-y: auto;
+}
+
+.pi {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 7px;
+    background: #232338; border-radius: 4px;
+    border: 1px solid #2a2a45;
+    cursor: pointer; transition: all 0.15s;
+    font-size: 11px; color: #aaa;
+}
+.pi:hover { border-color: #667eea44; color: #ddd; }
+.pi.sel-pi { border-color: #667eea; background: #667eea10; color: #a5b4fc; }
+.pi .tok-hp-bar {
+    flex: 1; height: 4px; background: #2a2a45; border-radius: 2px; overflow: hidden;
+    margin: 0 4px;
+}
+.pi .tok-hp-fill {
+    height: 100%; border-radius: 2px; transition: width 0.2s;
+}
+.pi .tok-invis {
+    opacity: 0.4;
+    font-style: italic;
+}
+
+/* ─── DELETE BUTTON ─── */
+.db {
+    padding: 4px 8px;
+    background: #7f1d1d; border: 1px solid #ef4444;
+    color: #fca5a5; cursor: pointer;
+    border-radius: 4px; font-size: 10px;
+    transition: all 0.15s;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.db:hover { background: #991b1b; }
+
+/* ─── SELECTED TOKEN INFO ─── */
+#sb {
+    padding: 8px;
+    background: #1e1e35;
+    border: 1px solid #667eea33;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #c0c0d8;
+}
+
+/* ─── LEFT PANEL (placed tokens + edit) ─── */
+#left-panel {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    z-index: 150;
+    width: 230px;
+    background: #1e1e35f5;
+    border-right: 1px solid #667eea44;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    backdrop-filter: blur(12px);
+}
+#left-panel h3 {
+    font-size: 9px;
+    font-weight: 700;
+    color: #6666aa;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 6px 0 4px;
+    border-bottom: 1px solid #2d2d50;
+    margin: 0;
+}
+
+/* ─── TOKEN EDIT (inner section of left panel) ─── */
+#tok-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+#tok-edit .ctrl-row { margin-bottom: 4px; }
+.left-panel-divider {
+    height: 1px;
+    background: #32325a;
+    margin: 8px 0 4px;
+}
+
+.conditions-grid {
+    display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px;
+}
+.cond-btn {
+    padding: 2px 6px;
+    font-size: 9px;
+    background: #2a2a45;
+    border: 1px solid #3a3a60;
+    color: #8888bb;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.cond-btn:hover { border-color: #667eea44; }
+.cond-btn.cond-on {
+    background: #667eea22;
+    border-color: #667eea88;
+    color: #a5b4fc;
+    font-weight: bold;
+}
+
+/* ─── MODE INDICATOR ─── */
+.mi {
+    display: inline-block;
+    padding: 3px 10px; border-radius: 14px;
+    font-size: 10px; font-weight: bold;
+    background: #667eea18; border: 1px solid #667eea44;
+    color: #667eea; letter-spacing: 0.3px;
+    transition: all 0.2s;
+}
+
+/* ─── HINT / PLACEHOLDER ─── */
+#hint {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #5a5a88; font-size: 14px; text-align: center;
+    cursor: pointer; user-select: none;
+    line-height: 1.6; white-space: nowrap;
+    padding: 40px 60px;
+    border: 2px dashed #3a3a60;
+    border-radius: 16px;
+    transition: all 0.2s;
+}
+#hint:hover {
+    border-color: #667eea88;
+    color: #8888bb;
+    background: #667eea08;
+}
+#hint p { margin: 0; }
+.hint-sub {
+    font-size: 11px !important;
+    color: #44446a;
+    margin-top: 4px !important;
+}
+
+/* ─── DRAG & DROP OVERLAY ─── */
+#drop-overlay {
+    display: none;
+    position: absolute; inset: 0; z-index: 100;
+    background: rgba(102,126,234,0.12);
+    border: 3px dashed #667eea;
+    border-radius: 12px;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    color: #a5b4fc;
+    font-size: 16px; font-weight: bold;
+    gap: 12px;
+    pointer-events: none;
+}
+#drop-overlay.visible {
+    display: flex;
+}
+.drop-icon { font-size: 48px; }
+
+/* ─── VALUE LABELS ─── */
+.val-label { color: #a5b4fc; font-weight: bold; font-size: 11px; }
+
+/* ─── ROWS: label + control ─── */
+.ctrl-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 6px;
+}
+.ctrl-row label { font-size: 11px; color: #8888aa; white-space: nowrap; }
+.ctrl-row input[type="range"] { flex: 1; accent-color: #667eea; height: 3px; }
+.ctrl-row input[type="number"] { width: 54px; background: #2a2a45; border: 1px solid #3a3a60; color: #ddd; border-radius: 4px; padding: 3px 6px; font-size: 11px; }
+.ctrl-row select { background: #2a2a45; border: 1px solid #3a3a60; color: #ddd; border-radius: 4px; padding: 3px 6px; font-size: 11px; }
+
+/* ─── BRUSH SIZE SECTION ─── */
+#brush-ctrl { display: none; }
+#brush-ctrl.visible { display: block; }
+
+/* ─── TOOLBAR OVERRIDES ─── */
+.top-toolbar button.active,
+.top-toolbar button.sec {
+    padding: 5px 10px;
+    font-size: 11px;
+    border-radius: 5px;
+}
+
+/* ─── MODE LABEL ─── */
+#ml {
+    font-size: 11px;
+    font-weight: bold;
+    color: #667eea;
+    padding: 0 6px;
+    white-space: nowrap;
+}
+
+/* ─── INITIATIVE TRACKER ─── */
+#init-section {
+    display: flex; flex-direction: column; gap: 4px;
+    transition: max-height 0.3s;
+}
+#init-section.collapsed {
+    display: none;
+}
+#init-list {
+    display: flex; flex-direction: column; gap: 2px;
+    max-height: 200px; overflow-y: auto;
+}
+.init-item {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 6px; font-size: 11px;
+    background: #232338; border: 1px solid #2a2a45;
+    border-radius: 4px; color: #aaa;
+    transition: all 0.15s;
+}
+.init-item.init-active {
+    border-color: #667eea;
+    background: linear-gradient(135deg, #667eea15, #764ba215);
+    color: #a5b4fc;
+    font-weight: bold;
+}
+.init-item .init-score {
+    color: #667eea;
+    font-weight: bold;
+    min-width: 22px;
+    text-align: center;
+}
+.init-item .init-name { flex: 1; }
+.init-item .db { padding: 2px 6px; font-size: 9px; }
+
+/* ─── SHORTCUTS MODAL ─── */
+.shortcut-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+}
+.sc-cat {
+    grid-column: 1 / -1;
+    font-size: 9px;
+    font-weight: 700;
+    color: #667eea;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 8px 0 2px;
+    border-bottom: 1px solid #2d2d50;
+}
+.sc {
+    font-size: 12px;
+    color: #aaa;
+    padding: 2px 0;
+}
+.sc kbd {
+    display: inline-block;
+    padding: 2px 7px;
+    background: #2a2a45;
+    border: 1px solid #4a4a6a;
+    border-radius: 4px;
+    font-size: 10px;
+    font-family: inherit;
+    color: #a5b4fc;
+    margin-right: 6px;
+    min-width: 24px;
+    text-align: center;
+}
+
+/* ─── MEASURE BADGE ─── */
+.measure-badge {
+    position: absolute;
+    background: #1e1e35ee;
+    border: 1px solid #667eea88;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #a5b4fc;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 50;
+}
+
+/* ─── DM PEEK BUTTON ─── */
+#b-peek.peek-on {
+    background: linear-gradient(135deg, #667eea33, #764ba233);
+    border-color: #667eea;
+    color: #a5b4fc;
+    box-shadow: 0 0 8px rgba(102,126,234,0.4);
+}
+
+/* ─── TOOLBAR ACTION BUTTONS (Révéler / Cacher — text, not icon-only) ─── */
+.top-toolbar .action-btn {
+    width: auto;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    gap: 4px;
+}
+
+/* ─── TOOLBAR DROPDOWN PANELS ─── */
+.toolbar-dropdown { position: relative; flex-shrink: 0; }
+.toolbar-panel {
+    display: none;
+    position: fixed;
+    background: #1e1e35;
+    border: 1px solid #667eea44;
+    border-radius: 8px;
+    padding: 10px;
+    min-width: 220px;
+    z-index: 200;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.toolbar-panel.open { display: block; }
+.panel-title {
+    font-size: 11px; font-weight: 700; color: #a5b4fc;
+    margin-bottom: 8px; padding-bottom: 6px;
+    border-bottom: 1px solid #2d2d50;
+}
+.panel-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 6px; font-size: 11px; color: #9999bb;
+}
+.panel-row label { min-width: 70px; white-space: nowrap; }
+.panel-action {
+    width: 100%; justify-content: flex-start;
+    margin-bottom: 4px; font-size: 11px;
+}
+
+/* ─── SIDEBAR TABS ─── */
+.sidebar-tabs {
+    display: flex; gap: 0; margin-bottom: 6px;
+    border-bottom: 1px solid #32325a;
+}
+.stab {
+    flex: 1; padding: 7px 0; text-align: center;
+    background: transparent; border: none;
+    color: #6666aa; font-size: 11px; font-weight: 600;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+}
+.stab:hover { color: #a5b4fc; }
+.stab-active {
+    color: #a5b4fc;
+    border-bottom-color: #667eea;
+}
+
+/* ─── TAB PANELS ─── */
+.tab-panel {
+    display: flex; flex-direction: column; gap: 6px;
+    flex: 1; overflow-y: auto;
+}
+
+/* ─── PANEL DESC ─── */
+.panel-desc {
+    font-size: 10px; color: #6666aa;
+    line-height: 1.4; margin: 0 0 4px;
+}
+
+/* ─── ROUND BADGE ─── */
+.round-badge {
+    text-align: center;
+    font-size: 11px; font-weight: 700;
+    color: #667eea;
+    background: #667eea12;
+    border: 1px solid #667eea33;
+    border-radius: 6px;
+    padding: 5px 0; margin-top: 6px;
+    letter-spacing: 0.5px;
+}
+
+/* ─── DICE ROLLER ─── */
+.dice-bar {
+    display: flex; flex-wrap: wrap; gap: 3px;
+}
+.dice-btn {
+    flex: 1; min-width: 28px;
+    padding: 5px 2px;
+    font-size: 10px; font-weight: 700;
+    text-align: center;
+    background: #2a2a45;
+    border: 1px solid #3a3a60;
+    color: #8888bb;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.dice-btn:hover {
+    background: #323255;
+    border-color: #667eea66;
+    color: #a5b4fc;
+}
+.dice-btn:active {
+    background: #667eea25;
+    transform: scale(0.93);
+}
+.dice-btn-100 {
+    min-width: 34px;
+}
+
+#dice-log {
+    display: flex; flex-direction: column; gap: 3px;
+    max-height: 180px; overflow-y: auto;
+    margin-top: 6px;
+}
+.dice-entry {
+    padding: 5px 7px;
+    background: #232338;
+    border: 1px solid #2a2a45;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #aaa;
+    animation: dice-in 0.25s ease-out;
+}
+.dice-entry .dice-label {
+    color: #667eea;
+    font-weight: 700;
+}
+.dice-entry .dice-total {
+    float: right;
+    font-weight: 700;
+    font-size: 12px;
+    color: #a5b4fc;
+}
+.dice-entry .dice-detail {
+    color: #666690;
+    font-size: 9px;
+    margin-top: 2px;
+}
+.dice-entry.dice-crit {
+    border-color: #22c55e88;
+    background: #22c55e0d;
+}
+.dice-entry.dice-crit .dice-total {
+    color: #22c55e;
+}
+.dice-entry.dice-fail {
+    border-color: #ef444488;
+    background: #ef44440d;
+}
+.dice-entry.dice-fail .dice-total {
+    color: #ef4444;
+}
+@keyframes dice-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── TOKEN EDIT HEADER ─── */
+.tok-edit-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; padding-bottom: 6px;
+    border-bottom: 1px solid #2d2d50;
+}
+.tok-edit-header h3 { border: none; padding: 0; }
+.tok-edit-title {
+    font-size: 12px; font-weight: 700; color: #a5b4fc;
+}
+.tok-edit-close {
+    background: none; border: none;
+    color: #666; cursor: pointer; font-size: 14px;
+    padding: 2px 6px; border-radius: 4px;
+    transition: all 0.15s;
+}
+.tok-edit-close:hover { color: #ef4444; background: #ef444418; }
+
+/* ─── SCROLLBAR sidebar ─── */
+#sp::-webkit-scrollbar { width: 4px; }
+#sp::-webkit-scrollbar-track { background: transparent; }
+#sp::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 2px; }
+
+/* ─── ACTIVE INITIATIVE GLOW (canvas drawn, but token highlight color) ─── */
+@keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(102,126,234,0.5); }
+    50% { box-shadow: 0 0 14px rgba(102,126,234,0.8); }
+}
+
