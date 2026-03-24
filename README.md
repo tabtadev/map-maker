@@ -1,6 +1,6 @@
 # Map Tools
 
-Browser-based tools for creating and managing interactive maps. Demo: https://tabtadev.github.io/map-maker/
+Browser-based tools for creating and managing interactive maps. Demo: https://tabtadev.github.io/map-maker/index.html
 
 ![Example](/Animation.gif)
 
