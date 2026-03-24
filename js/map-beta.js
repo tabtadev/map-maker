@@ -881,6 +881,7 @@ function getFalloff(dist, range) {
 
 function calculateLighting() {
   const lightMap = new Array(cols * rows).fill(0);
+  const wallLightMap = new Array(cols * rows).fill(0);
   const allLights = [];
   for (let key in lightLayer) {
     const [lx, ly] = key.split(',').map(Number);
@@ -905,12 +906,28 @@ function calculateLighting() {
           const falloff = getFalloff(dist, range);
           const value = falloff * intensity;
           const idx = y * cols + x;
-          lightMap[idx] = Math.max(lightMap[idx], value);
+          const ck = `${x},${y}`, co = objectLayer[ck];
+          if (co && co.type && (co.type.startsWith('wall') || co.type.startsWith('door') || co.type.includes('barricaded'))) {
+            wallLightMap[idx] = Math.max(wallLightMap[idx], value);
+            if (co.type === 'wall-edge' && co.edgeSides) {
+              const s = co.edgeSides, dx = x - lx, dy = y - ly;
+              let hitsExterior = false;
+              if (dx < 0 && s.right) hitsExterior = true;
+              if (dx > 0 && s.left) hitsExterior = true;
+              if (dy < 0 && s.bottom) hitsExterior = true;
+              if (dy > 0 && s.top) hitsExterior = true;
+              if (!hitsExterior) lightMap[idx] = Math.max(lightMap[idx], value);
+            } else {
+              lightMap[idx] = Math.max(lightMap[idx], Math.min(value, 0.1));
+            }
+          } else {
+            lightMap[idx] = Math.max(lightMap[idx], value);
+          }
         }
       }
     }
   }
-  return lightMap;
+  return {lightMap, wallLightMap};
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -1011,22 +1028,79 @@ function _doRedraw() {
   // Lighting
   const hasLights = Object.keys(lightLayer).length > 0 || Object.values(emojiLayer).some(e => e.emitsLight);
   if (hasLights || ambientLight < 1) {
-    const lightMap = calculateLighting();
+    const {lightMap, wallLightMap} = calculateLighting();
+    // 1) Darken floor cells
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        const idx = y * cols + x;
-        let brightness = Math.min(1, ambientLight + lightMap[idx]);
-        // In play mode, if cell is fogged, skip lighting (fog handles it)
         if (appMode === 'play' && fog.length > 0 && fog[y] && fog[y][x]) continue;
-        if (brightness < 1) {
-          const gray = Math.round(brightness * 255);
-          ctx.fillStyle = `rgb(${gray},${gray},${gray})`;
+        const idx = y * cols + x;
+        const totalLight = Math.min(1, ambientLight + lightMap[idx]);
+        const darkness = 1 - totalLight;
+        if (darkness > 0) {
+          ctx.fillStyle = `rgba(0,0,0,${darkness})`;
           ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
         }
       }
     }
+    ctx.globalCompositeOperation = 'source-over';
+    // 2) Redraw wall-edge faces with separate wall lighting
+    const th = 6;
+    for (let k in objectLayer) {
+      const c = objectLayer[k];
+      if (c.type !== 'wall-edge') continue;
+      const [wx, wy] = k.split(',').map(Number);
+      const s = c.edgeSides || {};
+      const px = wx * cellSize, py = wy * cellSize;
+      const wLight = Math.min(1, ambientLight + wallLightMap[wy * cols + wx]);
+      const wDark = 1 - wLight;
+      ctx.fillStyle = c.color || selectedColor;
+      if (s.top)    ctx.fillRect(px, py, cellSize, th);
+      if (s.bottom) ctx.fillRect(px, py + cellSize - th, cellSize, th);
+      if (s.left)   ctx.fillRect(px, py, th, cellSize);
+      if (s.right)  ctx.fillRect(px + cellSize - th, py, th, cellSize);
+      if (wDark > 0) {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = `rgba(0,0,0,${wDark})`;
+        if (s.top)    ctx.fillRect(px, py, cellSize, th);
+        if (s.bottom) ctx.fillRect(px, py + cellSize - th, cellSize, th);
+        if (s.left)   ctx.fillRect(px, py, th, cellSize);
+        if (s.right)  ctx.fillRect(px + cellSize - th, py, th, cellSize);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+    // 3) Colored light glows
+    ctx.globalCompositeOperation = 'screen';
+    for (let key in lightLayer) {
+      const [lx, ly] = key.split(',').map(Number);
+      const lt = lightLayer[key], ldef = lightTypes[lt.type];
+      if (!ldef) continue;
+      const cpx = lx * cellSize + cellSize / 2, cpy = ly * cellSize + cellSize / 2;
+      const r = ldef.range * cellSize;
+      const grad = ctx.createRadialGradient(cpx, cpy, 0, cpx, cpy, r);
+      grad.addColorStop(0, ldef.color + '66');
+      grad.addColorStop(0.5, ldef.color + '22');
+      grad.addColorStop(1, ldef.color + '00');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cpx - r, cpy - r, r * 2, r * 2);
+    }
+    for (let key in emojiLayer) {
+      const obj = emojiLayer[key];
+      if (!obj.emitsLight) continue;
+      const [lx, ly] = key.split(',').map(Number);
+      const ldef = lightTypes[obj.lightType || 'torch'];
+      if (!ldef) continue;
+      const cpx = lx * cellSize + cellSize / 2, cpy = ly * cellSize + cellSize / 2;
+      const r = ldef.range * cellSize;
+      const grad = ctx.createRadialGradient(cpx, cpy, 0, cpx, cpy, r);
+      grad.addColorStop(0, ldef.color + '55');
+      grad.addColorStop(0.5, ldef.color + '18');
+      grad.addColorStop(1, ldef.color + '00');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cpx - r, cpy - r, r * 2, r * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
   }
 
@@ -1386,6 +1460,85 @@ function redrawPlayer() {
     px.font = 'bold 11px sans-serif'; px.textAlign = 'center'; px.textBaseline = 'middle';
     px.fillStyle = 'rgba(0,0,0,0.7)'; px.fillText(v.text, lx + 1, ly + 1);
     px.fillStyle = v.color || '#fff'; px.fillText(v.text, lx, ly);
+  }
+
+  // Lighting (same as DM view)
+  const hasLightsP = Object.keys(lightLayer).length > 0 || Object.values(emojiLayer).some(e => e.emitsLight);
+  if (hasLightsP || ambientLight < 1) {
+    const {lightMap, wallLightMap} = calculateLighting();
+    px.save();
+    // 1) Darken floor cells
+    px.globalCompositeOperation = 'multiply';
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (fog.length > 0 && fog[y] && fog[y][x]) continue;
+        const idx = y * cols + x;
+        const totalLight = Math.min(1, ambientLight + lightMap[idx]);
+        const darkness = 1 - totalLight;
+        if (darkness > 0) {
+          px.fillStyle = `rgba(0,0,0,${darkness})`;
+          px.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+    px.globalCompositeOperation = 'source-over';
+    // 2) Redraw wall-edge faces with wall lighting
+    const th = 6;
+    for (let k in objectLayer) {
+      const c = objectLayer[k];
+      if (c.type !== 'wall-edge') continue;
+      const [wx, wy] = k.split(',').map(Number);
+      const s = c.edgeSides || {};
+      const ppx = wx * cellSize, ppy = wy * cellSize;
+      const wLight = Math.min(1, ambientLight + wallLightMap[wy * cols + wx]);
+      const wDark = 1 - wLight;
+      px.fillStyle = c.color || selectedColor;
+      if (s.top)    px.fillRect(ppx, ppy, cellSize, th);
+      if (s.bottom) px.fillRect(ppx, ppy + cellSize - th, cellSize, th);
+      if (s.left)   px.fillRect(ppx, ppy, th, cellSize);
+      if (s.right)  px.fillRect(ppx + cellSize - th, ppy, th, cellSize);
+      if (wDark > 0) {
+        px.globalCompositeOperation = 'multiply';
+        px.fillStyle = `rgba(0,0,0,${wDark})`;
+        if (s.top)    px.fillRect(ppx, ppy, cellSize, th);
+        if (s.bottom) px.fillRect(ppx, ppy + cellSize - th, cellSize, th);
+        if (s.left)   px.fillRect(ppx, ppy, th, cellSize);
+        if (s.right)  px.fillRect(ppx + cellSize - th, ppy, th, cellSize);
+        px.globalCompositeOperation = 'source-over';
+      }
+    }
+    // 3) Colored light glows
+    px.globalCompositeOperation = 'screen';
+    for (let key in lightLayer) {
+      const [lx, ly] = key.split(',').map(Number);
+      const lt = lightLayer[key], ldef = lightTypes[lt.type];
+      if (!ldef) continue;
+      const cpx = lx * cellSize + cellSize / 2, cpy = ly * cellSize + cellSize / 2;
+      const r = ldef.range * cellSize;
+      const grad = px.createRadialGradient(cpx, cpy, 0, cpx, cpy, r);
+      grad.addColorStop(0, ldef.color + '66');
+      grad.addColorStop(0.5, ldef.color + '22');
+      grad.addColorStop(1, ldef.color + '00');
+      px.fillStyle = grad;
+      px.fillRect(cpx - r, cpy - r, r * 2, r * 2);
+    }
+    for (let key in emojiLayer) {
+      const obj = emojiLayer[key];
+      if (!obj.emitsLight) continue;
+      const [lx, ly] = key.split(',').map(Number);
+      const ldef = lightTypes[obj.lightType || 'torch'];
+      if (!ldef) continue;
+      const cpx = lx * cellSize + cellSize / 2, cpy = ly * cellSize + cellSize / 2;
+      const r = ldef.range * cellSize;
+      const grad = px.createRadialGradient(cpx, cpy, 0, cpx, cpy, r);
+      grad.addColorStop(0, ldef.color + '55');
+      grad.addColorStop(0.5, ldef.color + '18');
+      grad.addColorStop(1, ldef.color + '00');
+      px.fillStyle = grad;
+      px.fillRect(cpx - r, cpy - r, r * 2, r * 2);
+    }
+    px.globalCompositeOperation = 'source-over';
+    px.restore();
   }
 
   // Grid
