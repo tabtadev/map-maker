@@ -6,7 +6,7 @@ Browser-based tools for creating and managing interactive maps. Demo: https://ta
 
 ---
 
-## Map Beta — Unified Map Studio
+## Map Beta - Unified Map Studio
 
 The all-in-one map creation and play tool, combining the best of Map Maker and Fog of War into a single streamlined experience.
 
