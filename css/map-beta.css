@@ -445,12 +445,12 @@
 .edit-row { margin-bottom: 6px; }
 .edit-row .small-label { margin-bottom: 2px; }
 
-/* ─── INIT LIST (improved) ─── */
+/* ─── INIT LIST v2 ─── */
 .init-list-container {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  max-height: 280px;
+  max-height: 400px;
   overflow-y: auto;
   margin-bottom: 8px;
 }
@@ -466,6 +466,16 @@
   font-size: 10px;
   font-weight: 700;
   color: #a5b4fc;
+}
+.init-quick-add-btn { width: 100%; margin-bottom: 6px; font-size: 10px; }
+.init-link-sel {
+  width: 52px;
+  font-size: 9px;
+  background: #2a2a45;
+  border: 1px solid #3a3a60;
+  color: #ddd;
+  border-radius: 3px;
+  padding: 1px 2px;
 }
 
 /* ─── DICE (improved spacing) ─── */
@@ -541,35 +551,263 @@
 }
 .placed-token-item .db:hover { color: #ef4444; }
 
-/* ─── INITIATIVE (original rules) ─── */
-.init-add-row { display: flex; gap: 4px; margin-bottom: 6px; }
+/* ─── INITIATIVE v2 (full combat manager) ─── */
+.init-add-row { display: flex; gap: 3px; margin-bottom: 6px; align-items: center; }
+.init-add-row .toolbar-input { font-size: 10px; padding: 3px 4px; }
 #initList { display: flex; flex-direction: column; gap: 2px; }
 .init-item {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 6px;
   background: #2a2a45;
   border: 1px solid #3a3a58;
-  border-radius: 4px;
+  border-radius: 5px;
   font-size: 11px;
   color: #8888aa;
+  transition: all 0.15s;
+  position: relative;
 }
+.init-item:hover { border-color: #4a4a6a; }
 .init-item.init-active {
   border-color: #667eea;
-  background: linear-gradient(135deg, #667eea15, #764ba215);
+  background: linear-gradient(135deg, #667eea12, #764ba210);
   color: #a5b4fc;
-  box-shadow: 0 0 8px rgba(102,126,234,0.15);
+  box-shadow: 0 0 10px rgba(102,126,234,0.18);
 }
+.init-item.init-dead {
+  opacity: 0.45;
+  border-color: #3a3a48;
+  background: #22223a;
+}
+.init-item.init-dead .init-name { text-decoration: line-through; }
+.init-item.init-dragging {
+  opacity: 0.6;
+  border-color: #667eea;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* Row 1: drag + emoji + score + name + AC + link */
+.init-row-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+}
+.init-drag-handle {
+  cursor: grab;
+  color: #555;
+  font-size: 12px;
+  user-select: none;
+  padding: 0 1px;
+  line-height: 1;
+}
+.init-drag-handle:hover { color: #a5b4fc; }
+.init-drag-handle:active { cursor: grabbing; }
+.init-emoji { font-size: 14px; line-height: 1; }
 .init-score {
   font-weight: 700;
   color: #667eea;
-  min-width: 26px;
+  min-width: 22px;
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
 }
-.init-name { flex: 1; font-size: 12px; }
-.init-controls { display: flex; align-items: center; gap: 4px; }
+.init-name {
+  flex: 1;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.init-ac-badge {
+  background: #2a2a45;
+  border: 1px solid #4a4a6a;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #8888aa;
+  white-space: nowrap;
+}
+.init-note-indicator {
+  font-size: 9px;
+  opacity: 0.7;
+  cursor: pointer;
+}
+.init-note-indicator:hover { opacity: 1; }
+
+/* Row 2: HP bar + HP text + actions */
+.init-row-mid {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 18px;
+}
+.init-hp-bar {
+  flex: 1;
+  height: 5px;
+  background: #1a1a2e;
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 30px;
+}
+.init-hp-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.2s, background 0.2s;
+}
+.init-hp-text {
+  font-size: 9px;
+  color: #6677aa;
+  min-width: 36px;
+  text-align: right;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.init-actions {
+  display: flex;
+  gap: 1px;
+  margin-left: 2px;
+}
+.init-action-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: #555;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  transition: all 0.1s;
+  line-height: 1;
+}
+.init-action-btn:hover { color: #c0c0d8; background: #3a3a58; border-color: #4a4a6a; }
+.init-action-btn.dmg:hover { color: #ef4444; }
+.init-action-btn.heal:hover { color: #22c55e; }
+.init-action-btn.dead:hover { color: #888; }
+.init-action-btn.menu:hover { color: #a5b4fc; }
+
+/* Row 3: conditions */
+.init-row-bottom { display: flex; gap: 2px; padding-left: 18px; flex-wrap: wrap; }
+.init-cond-chip {
+  padding: 0 5px;
+  background: #667eea18;
+  border: 1px solid #667eea33;
+  border-radius: 8px;
+  font-size: 8px;
+  color: #a5b4fc;
+  white-space: nowrap;
+  line-height: 16px;
+}
+.init-cond-chip.cond-bad { background: #ef444418; border-color: #ef444433; color: #fca5a5; }
+.init-cond-chip.cond-neutral { background: #eab30818; border-color: #eab30833; color: #fde68a; }
+
+/* Context sub-menu (for ⚙️) */
+.init-context-menu {
+  position: fixed;
+  z-index: 1100;
+  background: #22223a;
+  border: 1px solid #3a3a58;
+  border-radius: 6px;
+  padding: 3px 0;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  min-width: 130px;
+}
+.init-context-menu button {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #8888aa;
+  font-size: 10px;
+  padding: 4px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.init-context-menu button:hover { background: #2a2a45; color: #c0c0d8; }
+
+/* ─── INITIATIVE MODALS ─── */
+.init-modal-target {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c0c0d8;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.init-modal-mode-toggle {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+.init-mode-btn {
+  flex: 1;
+  padding: 5px 8px;
+  background: #2a2a45;
+  border: 1px solid #3a3a58;
+  border-radius: 5px;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+  transition: all 0.1s;
+}
+.init-mode-btn:hover { border-color: #667eea; color: #c0c0d8; }
+.init-mode-btn.active { border-color: #667eea; background: #667eea22; color: #a5b4fc; }
+.init-dmg-input {
+  width: 100%;
+  font-size: 22px;
+  text-align: center;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.init-dmg-presets {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.init-preset-btn {
+  padding: 4px 12px;
+  background: #2a2a45;
+  border: 1px solid #3a3a58;
+  border-radius: 5px;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition: all 0.1s;
+}
+.init-preset-btn:hover { border-color: #667eea; color: #c0c0d8; }
+
+/* Conditions grid */
+.init-cond-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.init-cond-toggle {
+  padding: 3px 8px;
+  background: #2a2a45;
+  border: 1px solid #3a3a58;
+  border-radius: 6px;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 10px;
+  transition: all 0.15s;
+  user-select: none;
+}
+.init-cond-toggle:hover { border-color: #667eea; color: #c0c0d8; }
+.init-cond-toggle.active { border-color: #667eea; background: #667eea22; color: #a5b4fc; }
+.init-exhaust-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: #8888aa;
+}
+.init-exhaust-row span:first-child { flex: 1; }
+#initExhaustLevel { font-weight: 700; color: #a5b4fc; min-width: 16px; text-align: center; }
 
 /* ─── DICE (original rules) ─── */
 .dice-quick-btns { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -657,8 +895,12 @@
   padding: 20px;
   min-width: 320px;
   max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
+.modal-card::-webkit-scrollbar { width: 4px; }
+.modal-card::-webkit-scrollbar-thumb { background: #3a3a58; border-radius: 2px; }
 .modal-card h3 {
   font-size: 15px;
   color: #a5b4fc;

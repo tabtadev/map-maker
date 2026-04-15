@@ -471,19 +471,32 @@
           <!-- ─── TAB: INITIATIVE ─── -->
           <div class="play-tab-content" id="tabContentInit" style="display:none">
             <div class="right-section">
-              <h4 class="panel-title">Initiative Order</h4>
+              <h4 class="panel-title">⚔️ Initiative Order</h4>
+
+              <!-- Add combatant row -->
               <div class="init-add-row">
                 <input type="text" id="initName" placeholder="Name" class="toolbar-input" style="flex:1">
-                <input type="number" id="initScore" placeholder="Init" class="toolbar-input" style="width:50px">
-                <button class="toolbar-btn" onclick="addInitiative()">+</button>
+                <input type="number" id="initScore" placeholder="Init" class="toolbar-input" style="width:44px">
+                <input type="number" id="initHP" placeholder="HP" class="toolbar-input" style="width:44px">
+                <input type="number" id="initAC" placeholder="AC" class="toolbar-input" style="width:40px">
+                <button class="toolbar-btn" onclick="addInitiative()" title="Add combatant">+</button>
               </div>
+
+              <!-- Quick-add from placed tokens -->
+              <button class="toolbar-btn init-quick-add-btn" onclick="quickAddFromTokens()" title="Add all unlinked placed tokens">⚡ Quick Add from Tokens</button>
+
+              <!-- Initiative list -->
               <div id="initList" class="init-list-container"></div>
+
+              <!-- Controls -->
               <div class="init-controls">
                 <button class="toolbar-btn init-next-btn" onclick="nextInitiative()">▶ Next</button>
+                <button class="toolbar-btn" onclick="initSortByScore()" title="Sort by score">🔽</button>
                 <button class="toolbar-btn" onclick="resetInitiative()" title="Reset">↺</button>
                 <span id="initRound" class="init-round-badge">Round 1</span>
               </div>
-              <p class="small-hint">Link a token to each entry via the dropdown.</p>
+
+              <p class="small-hint">Each combatant has action buttons: 🗡️ Damage, 💚 Heal, 💀 KO, ⚙️ More (conditions, notes). Drag ≡ to reorder. <kbd>N</kbd> = next turn.</p>
             </div>
           </div>
 
@@ -636,6 +649,62 @@
           <button class="toolbar-btn" style="width:100%" onclick="doExportPNG('dm')">🔍 DM View (semi-transparent fog)</button>
           <button class="toolbar-btn" style="width:100%" onclick="doExportPNG('player')">👁️ Player View (opaque fog)</button>
           <button class="toolbar-btn" style="width:100%" onclick="closeExportModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Initiative: Damage/Heal Modal -->
+    <div class="modal-overlay" id="initDmgHealModal">
+      <div class="modal-card" style="max-width:340px">
+        <h3 id="initDmgHealTitle">🗡️ Damage</h3>
+        <div class="init-modal-target" id="initDmgHealTarget"></div>
+        <div class="init-modal-mode-toggle">
+          <button class="init-mode-btn active" id="initModeDmg" onclick="setInitDmgMode('damage')">🗡️ Damage</button>
+          <button class="init-mode-btn" id="initModeHeal" onclick="setInitDmgMode('heal')">💚 Heal</button>
+        </div>
+        <input type="number" id="initDmgAmount" placeholder="Amount" class="toolbar-input init-dmg-input" min="0">
+        <div class="init-dmg-presets">
+          <button class="init-preset-btn" onclick="setInitDmgAmount(1)">1</button>
+          <button class="init-preset-btn" onclick="setInitDmgAmount(5)">5</button>
+          <button class="init-preset-btn" onclick="setInitDmgAmount(10)">10</button>
+          <button class="init-preset-btn" onclick="setInitDmgAmount(20)">20</button>
+          <button class="init-preset-btn" onclick="setInitDmgAmount(50)">50</button>
+        </div>
+        <div class="modal-actions">
+          <button class="toolbar-btn" onclick="applyDmgHeal()">✅ Apply</button>
+          <button class="toolbar-btn" onclick="closeInitDmgHealModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Initiative: Conditions Modal -->
+    <div class="modal-overlay" id="initConditionsModal">
+      <div class="modal-card" style="max-width:400px">
+        <h3 id="initCondTitle">🎭 Conditions</h3>
+        <div class="init-modal-target" id="initCondTarget"></div>
+        <div class="init-cond-grid" id="initCondGrid"></div>
+        <div class="init-exhaust-row">
+          <span>😰 Exhaustion</span>
+          <button class="init-preset-btn" onclick="initExhaustDec()">−</button>
+          <span id="initExhaustLevel">0</span>
+          <button class="init-preset-btn" onclick="initExhaustInc()">+</button>
+        </div>
+        <div class="modal-actions">
+          <button class="toolbar-btn" onclick="applyInitConditions()">✅ Apply</button>
+          <button class="toolbar-btn" onclick="closeInitConditionsModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Initiative: Notes Modal -->
+    <div class="modal-overlay" id="initNotesModal">
+      <div class="modal-card" style="max-width:360px">
+        <h3>📝 DM Notes</h3>
+        <div class="init-modal-target" id="initNotesTarget"></div>
+        <textarea id="initNotesText" rows="4" placeholder="DM-only notes for this combatant..."></textarea>
+        <div class="modal-actions">
+          <button class="toolbar-btn" onclick="saveInitNotes()">💾 Save</button>
+          <button class="toolbar-btn" onclick="closeInitNotesModal()">Cancel</button>
         </div>
       </div>
     </div>

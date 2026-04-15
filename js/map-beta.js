@@ -57,6 +57,50 @@ let editTokenIdx = null;   // placed token being edited
 
 // Initiative
 let initList = [], initCur = 0, initRound = 1;
+let initDmgTarget = null, initDmgMode = 'damage';
+let initCondTarget = null, initCondTemp = [];
+let initNotesTarget = null;
+let initDragIdx = null, initDragOverIdx = null;
+let initOpenMenu = null;
+
+// D&D 5e conditions
+const DND_CONDITIONS = [
+  {id:'blinded',    label:'Blinded',      icon:'🙈', type:'bad'},
+  {id:'charmed',    label:'Charmed',      icon:'💕', type:'bad'},
+  {id:'deafened',   label:'Deafened',     icon:'🔇', type:'neutral'},
+  {id:'frightened', label:'Frightened',   icon:'😱', type:'bad'},
+  {id:'grappled',   label:'Grappled',     icon:'🤼', type:'bad'},
+  {id:'incapacitated',label:'Incapacitated',icon:'🚫',type:'bad'},
+  {id:'invisible',  label:'Invisible',    icon:'👻', type:'neutral'},
+  {id:'paralyzed',  label:'Paralyzed',    icon:'⚡',  type:'bad'},
+  {id:'petrified',  label:'Petrified',    icon:'🪨', type:'bad'},
+  {id:'poisoned',   label:'Poisoned',     icon:'🤢', type:'bad'},
+  {id:'prone',      label:'Prone',        icon:'🔻', type:'neutral'},
+  {id:'restrained', label:'Restrained',   icon:'🔗', type:'bad'},
+  {id:'stunned',    label:'Stunned',      icon:'💫', type:'bad'},
+  {id:'unconscious',label:'Unconscious',  icon:'😵', type:'bad'},
+  {id:'concentration',label:'Concentration',icon:'🎯',type:'neutral'},
+];
+
+// Auto-emoji map
+const INIT_EMOJI_MAP = {
+  barbarian:'🪓', warrior:'⚔️', fighter:'⚔️', mage:'🧙', wizard:'🧙', sorcerer:'🔮',
+  ranger:'🏹', rogue:'🗡️', cleric:'✝️', paladin:'🛡️', druid:'🌿', bard:'🎵',
+  monk:'👊', warlock:'🔮', dragon:'🐉', goblin:'👺', skeleton:'💀', zombie:'🧟',
+  wolf:'🐺', troll:'👹', ogre:'👹', vampire:'🧛', spider:'🕷️', ghost:'👻',
+  bear:'🐻', orc:'😈', rat:'🐀', demon:'👿', snake:'🐍', bat:'🦇',
+  guard:'💂', knight:'🤺', king:'👑', queen:'👸', priest:'⛪', merchant:'💰',
+  peasant:'🧑', bandit:'🏴', pirate:'☠️', lich:'💀', golem:'🪨',
+  elemental:'🌊', giant:'🧔', fairy:'🧚', elf:'🧕', dwarf:'⛏️'
+};
+
+function autoDetectEmoji(name) {
+  const ln = name.toLowerCase();
+  for (const [k, v] of Object.entries(INIT_EMOJI_MAP)) {
+    if (ln.includes(k)) return v;
+  }
+  return '⚔️';
+}
 
 // Player view
 let playerWin = null;
@@ -679,60 +723,407 @@ function deleteToken(i) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   §11  INITIATIVE TRACKER
+   §11  INITIATIVE TRACKER v2 (COMBAT MANAGER)
    ───────────────────────────────────────────────────────── */
+
+/* ─ Add combatant ─ */
 function addInitiative() {
   const name = document.getElementById('initName').value.trim();
   const score = +document.getElementById('initScore').value || 0;
+  const hp = +document.getElementById('initHP').value || 0;
+  const ac = +document.getElementById('initAC').value || 0;
   if (!name) return;
-  initList.push({name, score, tokIdx: null});
+  initList.push({
+    name, score, tokIdx: null,
+    hp, maxHp: hp, ac,
+    dead: false, conditions: [], exhaustion: 0,
+    emoji: autoDetectEmoji(name), notes: ''
+  });
   initList.sort((a, b) => b.score - a.score);
   document.getElementById('initName').value = '';
   document.getElementById('initScore').value = '';
+  document.getElementById('initHP').value = '';
+  document.getElementById('initAC').value = '';
   renderInitList();
 }
 
+/* ─ Sort by score ─ */
+function initSortByScore() {
+  initList.sort((a, b) => b.score - a.score);
+  renderInitList();
+}
+
+/* ─ Render initiative list ─ */
 function renderInitList() {
   const el = document.getElementById('initList');
   el.innerHTML = '';
   initList.forEach((it, i) => {
     const d = document.createElement('div');
-    d.className = 'init-item' + (i === initCur ? ' init-active' : '');
-    let linkSel = '<select onchange="linkInitToken(' + i + ',this.value)" style="width:52px;font-size:9px;background:#2a2a45;border:1px solid #3a3a60;color:#ddd;border-radius:3px;padding:1px 2px">';
+    d.className = 'init-item' + (i === initCur ? ' init-active' : '') + (it.dead ? ' init-dead' : '');
+    d.setAttribute('data-init-idx', i);
+    d.draggable = false; // we handle drag manually
+
+    // Row 1: drag + emoji + score + name + AC + link + note indicator
+    const hpPct = it.maxHp > 0 ? Math.max(0, Math.min(1, it.hp / it.maxHp)) : 1;
+    const hpColor = it.dead ? '#555' : hpPct > 0.5 ? '#22c55e' : hpPct > 0.25 ? '#eab308' : '#ef4444';
+
+    // Token link dropdown
+    let linkSel = '<select class="init-link-sel" onchange="linkInitToken(' + i + ',this.value)">';
     linkSel += '<option value="-1">—</option>';
-    tokens.forEach((t, ti) => { linkSel += `<option value="${ti}"${it.tokIdx === ti ? ' selected' : ''}>${t.e}${t.l ? ' ' + t.l : ''}</option>`; });
+    tokens.forEach((t, ti) => {
+      linkSel += '<option value="' + ti + '"' + (it.tokIdx === ti ? ' selected' : '') + '>' + t.e + (t.l ? ' ' + t.l : '') + '</option>';
+    });
     linkSel += '</select>';
-    d.innerHTML = `<span class="init-score">${it.score}</span><span class="init-name">${it.name}</span>${linkSel}<button class="db" onclick="deleteInit(${i})" style="background:none;border:none;color:#555;cursor:pointer;font-size:10px">✕</button>`;
+
+    // AC display
+    const acHTML = it.ac > 0 ? '<span class="init-ac-badge" title="AC">🛡️' + it.ac + '</span>' : '';
+
+    // Note indicator
+    const noteHTML = it.notes ? '<span class="init-note-indicator" title="Has DM notes" onclick="openInitNotesModal(' + i + ')">📝</span>' : '';
+
+    // Conditions row
+    let condHTML = '';
+    if (it.conditions.length > 0 || it.exhaustion > 0) {
+      condHTML = '<div class="init-row-bottom">';
+      it.conditions.forEach(cid => {
+        const cdef = DND_CONDITIONS.find(c => c.id === cid);
+        if (cdef) {
+          const cls = cdef.type === 'bad' ? 'cond-bad' : 'cond-neutral';
+          condHTML += '<span class="init-cond-chip ' + cls + '">' + cdef.icon + ' ' + cdef.label + '</span>';
+        }
+      });
+      if (it.exhaustion > 0) condHTML += '<span class="init-cond-chip cond-bad">😰 Exhaust ' + it.exhaustion + '</span>';
+      condHTML += '</div>';
+    }
+
+    // HP bar row + action buttons (always visible)
+    const hpText = it.maxHp > 0 ? it.hp + '/' + it.maxHp : '';
+    const hpBarHTML = (it.maxHp > 0 ? (
+      '<div class="init-row-mid">' +
+        '<div class="init-hp-bar"><div class="init-hp-fill" style="width:' + (hpPct * 100) + '%;background:' + hpColor + '"></div></div>' +
+        '<span class="init-hp-text">' + hpText + '</span>'
+    ) : (
+      '<div class="init-row-mid">' +
+        '<div style="flex:1"></div>'
+    )) +
+      '<div class="init-actions">' +
+        '<button class="init-action-btn dmg" onclick="openInitDmgHealModal(' + i + ',\'damage\')" title="Damage">🗡️</button>' +
+        '<button class="init-action-btn heal" onclick="openInitDmgHealModal(' + i + ',\'heal\')" title="Heal">💚</button>' +
+        '<button class="init-action-btn dead" onclick="toggleInitDead(' + i + ')" title="' + (it.dead ? 'Revive' : 'KO/Kill') + '">' + (it.dead ? '💊' : '💀') + '</button>' +
+        '<button class="init-action-btn menu" onclick="toggleInitMenu(event,' + i + ')" title="More">⚙️</button>' +
+      '</div>' +
+    '</div>';
+
+    d.innerHTML =
+      '<div class="init-row-top">' +
+        '<span class="init-drag-handle" onmousedown="initDragStart(event,' + i + ')">≡</span>' +
+        '<span class="init-emoji">' + it.emoji + '</span>' +
+        '<span class="init-score">' + it.score + '</span>' +
+        '<span class="init-name" title="' + it.name + '">' + it.name + '</span>' +
+        acHTML + noteHTML + linkSel +
+      '</div>' +
+      hpBarHTML +
+      condHTML;
+
     el.appendChild(d);
   });
   document.getElementById('initRound').textContent = 'Round ' + initRound;
 }
 
+/* ─ Link token ─ */
 function linkInitToken(initIdx, tokIdx) {
   initList[initIdx].tokIdx = +tokIdx >= 0 ? +tokIdx : null;
   requestRedraw();
 }
 
+/* ─ Next initiative (skips dead) ─ */
 function nextInitiative() {
   if (!initList.length) return;
-  initCur++;
-  if (initCur >= initList.length) { initCur = 0; initRound++; }
+  const alive = initList.some(it => !it.dead);
+  let attempts = 0;
+  do {
+    initCur++;
+    if (initCur >= initList.length) { initCur = 0; initRound++; }
+    attempts++;
+  } while (alive && initList[initCur].dead && attempts < initList.length);
   renderInitList();
   requestRedraw();
 }
 
+/* ─ Reset ─ */
 function resetInitiative() {
   initCur = 0; initRound = 1;
   renderInitList();
   requestRedraw();
 }
 
+/* ─ Delete entry ─ */
 function deleteInit(i) {
   initList.splice(i, 1);
   if (initCur >= initList.length) initCur = Math.max(0, initList.length - 1);
+  closeInitMenu();
   renderInitList();
   requestRedraw();
 }
+
+/* ─ Toggle dead ─ */
+function toggleInitDead(i) {
+  initList[i].dead = !initList[i].dead;
+  if (initList[i].dead && initList[i].hp > 0) initList[i].hp = 0;
+  if (!initList[i].dead && initList[i].hp <= 0 && initList[i].maxHp > 0) initList[i].hp = 1;
+  renderInitList();
+  requestRedraw();
+}
+
+/* ─── INITIATIVE CONTEXT MENU ─── */
+function toggleInitMenu(e, idx) {
+  e.stopPropagation();
+  closeInitMenu();
+  initOpenMenu = idx;
+  const btn = e.target.closest('.init-action-btn') || e.target;
+  const rect = btn.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'init-context-menu';
+  menu.id = 'initCtxMenu';
+  menu.innerHTML =
+    '<button onclick="openInitConditionsModal(' + idx + ')">🎭 Conditions</button>' +
+    '<button onclick="openInitNotesModal(' + idx + ')">📝 DM Note</button>' +
+    '<button onclick="editInitScore(' + idx + ')">✏️ Edit score</button>' +
+    '<button onclick="deleteInit(' + idx + ')" style="color:#ef4444">🗑️ Remove</button>';
+  document.body.appendChild(menu);
+  // Position: prefer below-left of button, flip up if near bottom
+  const mh = 120; // approximate menu height
+  let top = rect.bottom + 2;
+  let left = rect.right - 130;
+  if (top + mh > window.innerHeight) top = rect.top - mh - 2;
+  if (left < 4) left = 4;
+  menu.style.top = top + 'px';
+  menu.style.left = left + 'px';
+}
+
+function closeInitMenu() {
+  const old = document.getElementById('initCtxMenu');
+  if (old) old.remove();
+  initOpenMenu = null;
+}
+
+function editInitScore(i) {
+  closeInitMenu();
+  const val = prompt('New initiative score for ' + initList[i].name + ':', initList[i].score);
+  if (val !== null && !isNaN(+val)) {
+    initList[i].score = +val;
+    renderInitList();
+  }
+}
+
+// Close init menu on any click
+document.addEventListener('click', () => { closeInitMenu(); });
+
+/* ─── DAMAGE / HEAL MODAL ─── */
+function openInitDmgHealModal(idx, mode) {
+  initDmgTarget = idx;
+  initDmgMode = mode || 'damage';
+  const it = initList[idx];
+  document.getElementById('initDmgHealTitle').textContent = mode === 'heal' ? '💚 Heal' : '🗡️ Damage';
+  document.getElementById('initDmgHealTarget').textContent = it.emoji + ' ' + it.name + ' (' + it.hp + '/' + it.maxHp + ' HP)';
+  document.getElementById('initDmgAmount').value = '';
+  document.getElementById('initModeDmg').classList.toggle('active', mode === 'damage');
+  document.getElementById('initModeHeal').classList.toggle('active', mode === 'heal');
+  document.getElementById('initDmgHealModal').classList.add('visible');
+  document.getElementById('initDmgAmount').focus();
+}
+
+function setInitDmgMode(mode) {
+  initDmgMode = mode;
+  document.getElementById('initDmgHealTitle').textContent = mode === 'heal' ? '💚 Heal' : '🗡️ Damage';
+  document.getElementById('initModeDmg').classList.toggle('active', mode === 'damage');
+  document.getElementById('initModeHeal').classList.toggle('active', mode === 'heal');
+}
+
+function setInitDmgAmount(v) {
+  document.getElementById('initDmgAmount').value = v;
+}
+
+function applyDmgHeal() {
+  if (initDmgTarget === null) return;
+  const amount = +document.getElementById('initDmgAmount').value || 0;
+  if (amount <= 0) { closeInitDmgHealModal(); return; }
+  const it = initList[initDmgTarget];
+  if (initDmgMode === 'damage') {
+    it.hp = Math.max(0, it.hp - amount);
+    if (it.hp === 0) it.dead = true;
+  } else {
+    it.hp = Math.min(it.maxHp || 9999, it.hp + amount);
+    if (it.hp > 0) it.dead = false;
+  }
+  closeInitDmgHealModal();
+  renderInitList();
+  requestRedraw();
+}
+
+function closeInitDmgHealModal() {
+  document.getElementById('initDmgHealModal').classList.remove('visible');
+  initDmgTarget = null;
+}
+
+/* ─── CONDITIONS MODAL ─── */
+function openInitConditionsModal(idx) {
+  closeInitMenu();
+  initCondTarget = idx;
+  const it = initList[idx];
+  initCondTemp = [...(it.conditions || [])];
+  document.getElementById('initCondTitle').textContent = '🎭 Conditions — ' + it.emoji + ' ' + it.name;
+  document.getElementById('initCondTarget').textContent = it.emoji + ' ' + it.name;
+  document.getElementById('initExhaustLevel').textContent = it.exhaustion || 0;
+
+  // Build conditions grid
+  const grid = document.getElementById('initCondGrid');
+  grid.innerHTML = '';
+  DND_CONDITIONS.forEach(cond => {
+    const btn = document.createElement('button');
+    btn.className = 'init-cond-toggle' + (initCondTemp.includes(cond.id) ? ' active' : '');
+    btn.textContent = cond.icon + ' ' + cond.label;
+    btn.onclick = () => {
+      const idx2 = initCondTemp.indexOf(cond.id);
+      if (idx2 >= 0) initCondTemp.splice(idx2, 1);
+      else initCondTemp.push(cond.id);
+      btn.classList.toggle('active');
+    };
+    grid.appendChild(btn);
+  });
+  document.getElementById('initConditionsModal').classList.add('visible');
+}
+
+function initExhaustInc() {
+  if (initCondTarget === null) return;
+  const el = document.getElementById('initExhaustLevel');
+  let v = +el.textContent || 0;
+  if (v < 6) el.textContent = v + 1;
+}
+
+function initExhaustDec() {
+  if (initCondTarget === null) return;
+  const el = document.getElementById('initExhaustLevel');
+  let v = +el.textContent || 0;
+  if (v > 0) el.textContent = v - 1;
+}
+
+function applyInitConditions() {
+  if (initCondTarget === null) return;
+  initList[initCondTarget].conditions = [...initCondTemp];
+  initList[initCondTarget].exhaustion = +(document.getElementById('initExhaustLevel').textContent) || 0;
+  closeInitConditionsModal();
+  renderInitList();
+  requestRedraw();
+}
+
+function closeInitConditionsModal() {
+  document.getElementById('initConditionsModal').classList.remove('visible');
+  initCondTarget = null;
+  initCondTemp = [];
+}
+
+/* ─── NOTES MODAL ─── */
+function openInitNotesModal(idx) {
+  closeInitMenu();
+  initNotesTarget = idx;
+  const it = initList[idx];
+  document.getElementById('initNotesTarget').textContent = it.emoji + ' ' + it.name;
+  document.getElementById('initNotesText').value = it.notes || '';
+  document.getElementById('initNotesModal').classList.add('visible');
+  document.getElementById('initNotesText').focus();
+}
+
+function saveInitNotes() {
+  if (initNotesTarget === null) return;
+  initList[initNotesTarget].notes = document.getElementById('initNotesText').value;
+  closeInitNotesModal();
+  renderInitList();
+}
+
+function closeInitNotesModal() {
+  document.getElementById('initNotesModal').classList.remove('visible');
+  initNotesTarget = null;
+}
+
+/* ─── QUICK-ADD FROM TOKENS ─── */
+function quickAddFromTokens() {
+  // Find placed tokens not already linked to any init entry
+  const linkedToks = new Set(initList.map(it => it.tokIdx).filter(i => i !== null));
+  let added = 0;
+  tokens.forEach((t, ti) => {
+    if (linkedToks.has(ti)) return;
+    const name = t.l || ('Token ' + (ti + 1));
+    initList.push({
+      name, score: 0, tokIdx: ti,
+      hp: t.maxHp || 0, maxHp: t.maxHp || 0, ac: 0,
+      dead: false, conditions: [], exhaustion: 0,
+      emoji: t.e || autoDetectEmoji(name), notes: ''
+    });
+    added++;
+  });
+  if (added > 0) {
+    initList.sort((a, b) => b.score - a.score);
+    renderInitList();
+  }
+}
+
+/* ─── DRAG-AND-DROP REORDER ─── */
+function initDragStart(e, idx) {
+  e.preventDefault();
+  initDragIdx = idx;
+  const items = document.querySelectorAll('.init-item');
+  if (items[idx]) items[idx].classList.add('init-dragging');
+
+  const onMove = (me) => {
+    const listEl = document.getElementById('initList');
+    const listRect = listEl.getBoundingClientRect();
+    const y = me.clientY - listRect.top;
+    const itemEls = document.querySelectorAll('.init-item');
+    let overIdx = initDragIdx;
+    for (let i = 0; i < itemEls.length; i++) {
+      const r = itemEls[i].getBoundingClientRect();
+      const mid = r.top + r.height / 2 - listRect.top;
+      if (y > mid) overIdx = i;
+    }
+    initDragOverIdx = overIdx;
+  };
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    const items2 = document.querySelectorAll('.init-item');
+    items2.forEach(el => el.classList.remove('init-dragging'));
+
+    if (initDragIdx !== null && initDragOverIdx !== null && initDragIdx !== initDragOverIdx) {
+      const moved = initList.splice(initDragIdx, 1)[0];
+      initList.splice(initDragOverIdx, 0, moved);
+      // Adjust initCur
+      if (initCur === initDragIdx) initCur = initDragOverIdx;
+      else {
+        if (initDragIdx < initCur && initDragOverIdx >= initCur) initCur--;
+        else if (initDragIdx > initCur && initDragOverIdx <= initCur) initCur++;
+      }
+      renderInitList();
+    }
+    initDragIdx = null;
+    initDragOverIdx = null;
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// Enter key in damage amount input → apply
+document.addEventListener('DOMContentLoaded', () => {
+  const dmgInput = document.getElementById('initDmgAmount');
+  if (dmgInput) dmgInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyDmgHeal(); });
+  // Enter in init add fields → addInitiative
+  ['initName','initScore','initHP','initAC'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') addInitiative(); });
+  });
+});
 
 /* ─────────────────────────────────────────────────────────
    §12  DICE ROLLER
@@ -1182,6 +1573,22 @@ function _doRedraw() {
             ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
           });
         }
+      }
+      // Initiative condition indicators on token
+      const initEntry = initList.find(it => it.tokIdx === ti);
+      if (initEntry && initEntry.conditions && initEntry.conditions.length > 0) {
+        const condR = Math.max(3, gs * 0.07);
+        const condColors = {bad: '#ef4444', neutral: '#eab308'};
+        initEntry.conditions.forEach((cid, ci) => {
+          const cdef = DND_CONDITIONS.find(c => c.id === cid);
+          if (!cdef) return;
+          const angle = (Math.PI / 2) + (ci * Math.PI * 2 / initEntry.conditions.length);
+          const orbitR = tw / 2 + condR + 4;
+          ctx.beginPath();
+          ctx.arc(cx + Math.cos(angle) * orbitR, cy + Math.sin(angle) * orbitR, condR, 0, Math.PI * 2);
+          ctx.fillStyle = condColors[cdef.type] || '#667eea'; ctx.fill();
+          ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+        });
       }
       ctx.restore();
     });
@@ -1889,7 +2296,15 @@ function importJSON(ev) {
         if (d.fog) fog = d.fog;
         if (d.tokens) tokens = d.tokens;
         if (d.tokenLibrary) tokenLibrary = d.tokenLibrary;
-        if (d.initList) { initList = d.initList; initCur = d.initCur || 0; initRound = d.initRound || 1; }
+        if (d.initList) {
+          initList = d.initList.map(it => ({
+            name: it.name || '', score: it.score || 0, tokIdx: it.tokIdx ?? null,
+            hp: it.hp ?? 0, maxHp: it.maxHp ?? 0, ac: it.ac ?? 0,
+            dead: it.dead ?? false, conditions: it.conditions || [], exhaustion: it.exhaustion ?? 0,
+            emoji: it.emoji || autoDetectEmoji(it.name || ''), notes: it.notes || ''
+          }));
+          initCur = d.initCur || 0; initRound = d.initRound || 1;
+        }
         if (d.ambientLight !== undefined) ambientLight = d.ambientLight;
         if (d.colorPalette) { colorPalette = d.colorPalette; initColorPalette(); }
         if (d.mapName) document.getElementById('mapName').value = d.mapName;
@@ -1955,7 +2370,15 @@ function importJSON(ev) {
           if (d.toks) {
             tokens = d.toks.map(t => ({...t, tags: (t.conditions || []).join(',')}));
           }
-          if (d.initList) { initList = d.initList; initCur = d.initCur || 0; initRound = d.initRound || 1; }
+          if (d.initList) {
+            initList = d.initList.map(it => ({
+              name: it.name || '', score: it.score || 0, tokIdx: it.tokIdx ?? null,
+              hp: it.hp ?? 0, maxHp: it.maxHp ?? 0, ac: it.ac ?? 0,
+              dead: it.dead ?? false, conditions: it.conditions || [], exhaustion: it.exhaustion ?? 0,
+              emoji: it.emoji || autoDetectEmoji(it.name || ''), notes: it.notes || ''
+            }));
+            initCur = d.initCur || 0; initRound = d.initRound || 1;
+          }
           updateCanvasSize();
           saveHistory('📂 Import (fog-of-war)');
         };
@@ -2604,6 +3027,15 @@ function showSettings() { document.getElementById('settingsModal').classList.add
 function closeSettings() { document.getElementById('settingsModal').classList.remove('visible'); requestRedraw(); }
 function toggleShortcuts() { document.getElementById('shortcutsModal').classList.toggle('visible'); }
 function closeShortcuts() { document.getElementById('shortcutsModal').classList.remove('visible'); }
+
+// Click on overlay background → close modal (all modal-overlays)
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay') && e.target.classList.contains('visible')) {
+    e.target.classList.remove('visible');
+    requestRedraw();
+  }
+});
+
 function toggleGrid() {
   showGrid = !showGrid;
   document.getElementById('toggleGridBtn').classList.toggle('active', showGrid);
@@ -2724,6 +3156,7 @@ document.addEventListener('keydown', e => {
   // Escape: close modals, cancel actions
   if (k === 'escape') {
     closeNoteModal(); closeLabelModal(); closeSettings(); closeShortcuts(); closeExportModal();
+    closeInitDmgHealModal(); closeInitConditionsModal(); closeInitNotesModal(); closeInitMenu();
     if (houseDrawActive) cancelHouseDrawMode();
     measureA = null; measureB = null; drawOverlay();
     return;
