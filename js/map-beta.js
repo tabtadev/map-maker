@@ -105,6 +105,7 @@ function autoDetectEmoji(name) {
 // Player view
 let playerWin = null;
 let playerShowGrid = false;
+let playerCellScale = 1;
 
 // Measure
 let measureA = null, measureB = null;
@@ -384,6 +385,33 @@ function resizeGrid() {
   saveHistory('📐 Resize');
 }
 
+function cellSizeUp() {
+  cellSize = Math.min(120, cellSize + 5);
+  _afterCellSizeChange();
+}
+function cellSizeDown() {
+  cellSize = Math.max(15, cellSize - 5);
+  _afterCellSizeChange();
+}
+function _afterCellSizeChange() {
+  document.getElementById('cellSizeDisplay').textContent = cellSize;
+  if (bgImage) {
+    cols = Math.ceil(bgImage.naturalWidth / cellSize);
+    rows = Math.ceil(bgImage.naturalHeight / cellSize);
+    document.getElementById('gridWidth').value = cols;
+    document.getElementById('gridHeight').value = rows;
+  }
+  updateCanvasSize();
+}
+function fitGridToImage() {
+  if (!bgImage) return;
+  cols = Math.ceil(bgImage.naturalWidth / cellSize);
+  rows = Math.ceil(bgImage.naturalHeight / cellSize);
+  document.getElementById('gridWidth').value = cols;
+  document.getElementById('gridHeight').value = rows;
+  updateCanvasSize();
+}
+
 /* ─────────────────────────────────────────────────────────
    §4  ZOOM & PAN
    ───────────────────────────────────────────────────────── */
@@ -567,6 +595,14 @@ function setFogAction(a) {
   document.getElementById('fogRevealBtn').classList.toggle('active', a === 'reveal');
   document.getElementById('fogHideBtn').classList.toggle('active', a === 'fog');
   updateHUD();
+}
+
+function syncFogOpacity(v) {
+  document.getElementById('fogDmOpacity').value = v;
+  document.getElementById('fogDmOpacityLabel').textContent = v + '%';
+  document.getElementById('fogDmOpacityInline').value = v;
+  document.getElementById('fogDmOpacityInlineLabel').textContent = v + '%';
+  requestRedraw();
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -1346,7 +1382,7 @@ function _doRedraw() {
 
   // Background image (if any)
   if (bgImage) {
-    ctx.drawImage(bgImage, 0, 0, w, h);
+    ctx.drawImage(bgImage, 0, 0, bgImage.naturalWidth, bgImage.naturalHeight);
   }
 
   // Floor layer
@@ -1757,14 +1793,15 @@ function openPlayerView() {
   playerWin = window.open('', '_blank', 'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no');
   if (!playerWin) return;
   playerWin.document.write(`<!DOCTYPE html><html><head><title>Map Beta — Player View</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;display:flex;align-items:center;justify-content:center;height:100vh;overflow:hidden}
-canvas{max-width:100vw;max-height:100vh;object-fit:contain}
-.pv-toolbar{position:fixed;top:10px;right:10px;z-index:100;display:flex;gap:6px}
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:auto}
+canvas{display:block}
+.pv-toolbar{position:fixed;top:10px;right:10px;z-index:100;display:flex;gap:6px;align-items:center}
 .pv-btn{padding:5px 12px;background:#25253ecc;border:1px solid #4a4a6a;color:#c0c0d8;border-radius:5px;font-size:12px;cursor:pointer;backdrop-filter:blur(6px);transition:all .15s}
 .pv-btn:hover{background:#38385a;border-color:#667eea;color:#fff}
-.pv-btn.pv-on{background:#667eea33;border-color:#667eea;color:#a5b4fc}</style></head>
+.pv-btn.pv-on{background:#667eea33;border-color:#667eea;color:#a5b4fc}
+.pv-scale{color:#a5b4fc;font-size:12px;font-family:sans-serif;min-width:42px;text-align:center}</style></head>
 <body><canvas id="pc"></canvas>
-<div class="pv-toolbar"><button id="pv-grid" class="pv-btn" onclick="window.opener.togglePlayerGrid()">▦ Grid</button></div>
+<div class="pv-toolbar"><button class="pv-btn" onclick="window.opener.playerCellZoomOut()">−</button><span id="pv-scale" class="pv-scale">100%</span><button class="pv-btn" onclick="window.opener.playerCellZoomIn()">+</button><button class="pv-btn" onclick="window.opener.playerCellZoomReset()">↺</button><button id="pv-grid" class="pv-btn" onclick="window.opener.togglePlayerGrid()">▦ Grid</button></div>
 </body></html>`);
   playerWin.document.close();
   setTimeout(() => redrawPlayer(), 200);
@@ -1779,16 +1816,30 @@ function togglePlayerGrid() {
   redrawPlayer();
 }
 
+function playerCellZoomIn() { playerCellScale = Math.min(4, +(playerCellScale + 0.25).toFixed(2)); updatePlayerScale(); redrawPlayer(); }
+function playerCellZoomOut() { playerCellScale = Math.max(0.25, +(playerCellScale - 0.25).toFixed(2)); updatePlayerScale(); redrawPlayer(); }
+function playerCellZoomReset() { playerCellScale = 1; updatePlayerScale(); redrawPlayer(); }
+function updatePlayerScale() {
+  if (!playerWin || playerWin.closed) return;
+  const el = playerWin.document.getElementById('pv-scale');
+  if (el) el.textContent = Math.round(playerCellScale * 100) + '%';
+}
+
 function redrawPlayer() {
   if (!playerWin || playerWin.closed) return;
   const pc = playerWin.document.getElementById('pc');
   if (!pc) return;
   const px = pc.getContext('2d');
-  pc.width = canvas.width; pc.height = canvas.height;
+  const _cs = cellSize;
+  cellSize = Math.round(cellSize * playerCellScale);
+  pc.width = cols * cellSize; pc.height = rows * cellSize;
   px.clearRect(0, 0, pc.width, pc.height);
 
   // Background
-  if (bgImage) px.drawImage(bgImage, 0, 0, pc.width, pc.height);
+  if (bgImage) {
+    const pScale = cellSize / _cs;
+    px.drawImage(bgImage, 0, 0, bgImage.naturalWidth * pScale, bgImage.naturalHeight * pScale);
+  }
 
   // Floor
   for (const [k, v] of Object.entries(floorLayer)) {
@@ -2001,6 +2052,7 @@ function redrawPlayer() {
     }
     px.restore();
   });
+  cellSize = _cs;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -2311,7 +2363,7 @@ function importJSON(ev) {
         if (d.settings) {
           if (d.settings.gridColor) document.getElementById('gridColor').value = d.settings.gridColor;
           if (d.settings.gridOpacity != null) document.getElementById('gridOpacity').value = d.settings.gridOpacity;
-          if (d.settings.fogDmOpacity != null) document.getElementById('fogDmOpacity').value = d.settings.fogDmOpacity;
+          if (d.settings.fogDmOpacity != null) { document.getElementById('fogDmOpacity').value = d.settings.fogDmOpacity; syncFogOpacity(d.settings.fogDmOpacity); }
           if (d.settings.peekOpacity != null) document.getElementById('peekOpacity').value = d.settings.peekOpacity;
           if (d.settings.dmTokenOpacity != null) document.getElementById('dmTokenOpacity').value = d.settings.dmTokenOpacity;
         }
@@ -2387,6 +2439,7 @@ function importJSON(ev) {
 
       document.getElementById('gridWidth').value = cols;
       document.getElementById('gridHeight').value = rows;
+      document.getElementById('cellSizeDisplay').textContent = cellSize;
       document.getElementById('ambientLight').value = Math.round(ambientLight * 100);
       document.getElementById('ambientValue').textContent = Math.round(ambientLight * 100) + '%';
       updatePlacedTokensList();
@@ -2419,7 +2472,7 @@ function doExportPNG(mode) {
   // Background
   tx.fillStyle = '#fff';
   tx.fillRect(0, 0, tc.width, tc.height);
-  if (bgImage) tx.drawImage(bgImage, 0, 0, tc.width, tc.height);
+  if (bgImage) tx.drawImage(bgImage, 0, 0, bgImage.naturalWidth, bgImage.naturalHeight);
 
   // Floor
   for (const [k, v] of Object.entries(floorLayer)) {

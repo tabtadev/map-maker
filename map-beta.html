@@ -34,6 +34,16 @@
       </div>
       <div class="toolbar-divider"></div>
 
+      <!-- CELL SIZE -->
+      <div class="toolbar-section">
+        <label>Cell</label>
+        <button class="toolbar-btn icon-btn" onclick="cellSizeDown()" title="Smaller cells">−</button>
+        <span class="zoom-display" id="cellSizeDisplay">40</span>
+        <button class="toolbar-btn icon-btn" onclick="cellSizeUp()" title="Bigger cells">+</button>
+        <button class="toolbar-btn" onclick="fitGridToImage()" title="Trim grid to fit the background image">✂ Fit</button>
+      </div>
+      <div class="toolbar-divider"></div>
+
       <!-- ZOOM -->
       <div class="toolbar-section">
         <button class="toolbar-btn icon-btn" onclick="zoomIn()" title="Zoom +">+</button>
@@ -338,6 +348,11 @@
               <input type="range" id="brushSize" min="1" max="15" value="3" class="small-range" oninput="document.getElementById('brushSizeLabel').textContent=this.value">
               <span id="brushSizeLabel" class="small-label" style="float:right">3</span>
             </div>
+            <div class="sub-section">
+              <label class="small-label">🌑 DM Fog Darkness</label>
+              <input type="range" id="fogDmOpacityInline" min="10" max="100" value="95" class="small-range" oninput="syncFogOpacity(this.value)">
+              <span id="fogDmOpacityInlineLabel" class="small-label" style="float:right">95%</span>
+            </div>
             <div style="display:flex;gap:4px;margin-top:6px">
               <button class="toolbar-btn" style="flex:1" onclick="clearFog()">☁️ Full Fog</button>
               <button class="toolbar-btn" style="flex:1" onclick="revealAllFog()">☀️ Reveal All</button>
@@ -582,7 +597,7 @@
           <input type="range" id="gridOpacity" min="0" max="100" value="20" class="small-range" oninput="document.getElementById('gridOpacityLabel').textContent=this.value+'%'">
           <span id="gridOpacityLabel" class="small-label">20%</span>
           <label class="small-label">Fog Opacity (DM)</label>
-          <input type="range" id="fogDmOpacity" min="10" max="100" value="95" class="small-range" oninput="document.getElementById('fogDmOpacityLabel').textContent=this.value+'%'">
+          <input type="range" id="fogDmOpacity" min="10" max="100" value="95" class="small-range" oninput="syncFogOpacity(this.value)">
           <span id="fogDmOpacityLabel" class="small-label">95%</span>
           <label class="small-label">Peek Opacity</label>
           <input type="range" id="peekOpacity" min="5" max="90" value="15" class="small-range" oninput="document.getElementById('peekOpacityLabel').textContent=this.value+'%'">
