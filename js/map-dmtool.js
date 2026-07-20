@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   MAP-BETA.JS — Unified map creation + fog of war engine
+   MAP-DMTOOL.JS — Unified map creation + fog of war engine
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 
@@ -106,6 +106,7 @@ function autoDetectEmoji(name) {
 let playerWin = null;
 let playerShowGrid = false;
 let playerCellScale = 1;
+let playerSyncView = true; // when true, player view matches DM viewport
 
 // Measure
 let measureA = null, measureB = null;
@@ -202,8 +203,15 @@ const defaultTokenPresets = [
 let tokenLibrary = [...defaultTokenPresets];
 
 // FX state
-const fxState = { fog: false, particles: false, vignette: false, lightning: false, sunrays: false };
+const fxState = {
+  fog: false, particles: false, vignette: false, lightning: false, sunrays: false,
+  shimmer: false, floating: false, fireflies: false, wind: false, ash: false
+};
 let particles = [];
+let floating = [];
+let fireflies = [];
+let windLines = [];
+let ashParticles = [];
 let _fxAnimLoop = null;
 
 // Minimap
@@ -223,7 +231,7 @@ let renderDirty = true;
 let _rafId = null;
 
 /* ─────────────────────────────────────────────────────────
-   §2  TEXTURES (procedural, ported from map-maker)
+   §2  TEXTURES (procedural)
    ───────────────────────────────────────────────────────── */
 function seededRandom(x, y, o = 0) {
   const s = x * 73856093 ^ y * 19349663 ^ o * 83492791;
@@ -373,6 +381,8 @@ function updateCanvasSize() {
   ensureFog();
   _invalidateTileCache();
   requestRedraw();
+  redrawPlayer();
+  if (playerSyncView) syncPlayerViewport();
 }
 
 function resizeGrid() {
@@ -422,6 +432,7 @@ let spaceHeld = false, panOrigin = null;
 function _applyZoom() {
   canvasWrapper.style.transform = `scale(${zoom})`;
   document.getElementById('zoomDisplay').textContent = Math.round(zoom * 100) + '%';
+  if (playerSyncView) syncPlayerViewport();
 }
 function zoomIn() { zoom = Math.min(3, zoom * 1.2); _applyZoom(); }
 function zoomOut() { zoom = Math.max(0.3, zoom / 1.2); _applyZoom(); }
@@ -434,6 +445,10 @@ canvasArea.addEventListener('wheel', e => {
   _applyZoom();
 }, {passive: false});
 
+canvasArea.addEventListener('scroll', () => {
+  if (playerSyncView) syncPlayerViewport();
+}, {passive: true});
+
 canvasArea.addEventListener('mousedown', e => {
   if (!spaceHeld) return;
   e.preventDefault(); e.stopPropagation();
@@ -444,6 +459,7 @@ document.addEventListener('mousemove', e => {
   if (!panOrigin) return;
   canvasArea.scrollLeft = panOrigin.sl - (e.clientX - panOrigin.x);
   canvasArea.scrollTop = panOrigin.st - (e.clientY - panOrigin.y);
+  if (playerSyncView) syncPlayerViewport();
 });
 document.addEventListener('mouseup', () => {
   if (panOrigin) { panOrigin = null; canvasArea.style.cursor = spaceHeld ? 'grab' : ''; }
@@ -1792,19 +1808,46 @@ function openPlayerView() {
   if (playerWin && !playerWin.closed) { playerWin.focus(); return; }
   playerWin = window.open('', '_blank', 'width=1024,height=768,menubar=no,toolbar=no,location=no,status=no');
   if (!playerWin) return;
-  playerWin.document.write(`<!DOCTYPE html><html><head><title>Map Beta — Player View</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:auto}
+  playerWin.document.write(`<!DOCTYPE html><html><head><title>Map DmTool — Player View</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{background:#000;width:100%;height:100%;overflow:hidden}
+#pv-wrap{width:100%;height:100%;overflow:auto;position:relative}
+#pv-content{position:absolute;top:0;left:0;transform-origin:0 0}
 canvas{display:block}
 .pv-toolbar{position:fixed;top:10px;right:10px;z-index:100;display:flex;gap:6px;align-items:center}
 .pv-btn{padding:5px 12px;background:#25253ecc;border:1px solid #4a4a6a;color:#c0c0d8;border-radius:5px;font-size:12px;cursor:pointer;backdrop-filter:blur(6px);transition:all .15s}
 .pv-btn:hover{background:#38385a;border-color:#667eea;color:#fff}
 .pv-btn.pv-on{background:#667eea33;border-color:#667eea;color:#a5b4fc}
 .pv-scale{color:#a5b4fc;font-size:12px;font-family:sans-serif;min-width:42px;text-align:center}</style></head>
-<body><canvas id="pc"></canvas>
-<div class="pv-toolbar"><button class="pv-btn" onclick="window.opener.playerCellZoomOut()">−</button><span id="pv-scale" class="pv-scale">100%</span><button class="pv-btn" onclick="window.opener.playerCellZoomIn()">+</button><button class="pv-btn" onclick="window.opener.playerCellZoomReset()">↺</button><button id="pv-grid" class="pv-btn" onclick="window.opener.togglePlayerGrid()">▦ Grid</button></div>
+<body><div id="pv-wrap"><div id="pv-content"><canvas id="pc"></canvas></div></div>
+<div class="pv-toolbar"><button class="pv-btn" id="pv-lock" onclick="window.opener.togglePlayerSync()">🔗 Lock</button><button class="pv-btn" onclick="window.opener.playerCellZoomOut()">−</button><span id="pv-scale" class="pv-scale">100%</span><button class="pv-btn" onclick="window.opener.playerCellZoomIn()">+</button><button class="pv-btn" onclick="window.opener.playerCellZoomReset()">↺</button><button id="pv-grid" class="pv-btn" onclick="window.opener.togglePlayerGrid()">▦ Grid</button></div>
 </body></html>`);
   playerWin.document.close();
-  setTimeout(() => redrawPlayer(), 200);
+  setTimeout(() => {
+    const lockBtn = playerWin.document.getElementById('pv-lock');
+    if (lockBtn) { lockBtn.textContent = playerSyncView ? '🔗 Lock' : '🔓 Free'; lockBtn.className = 'pv-btn' + (playerSyncView ? ' pv-on' : ''); }
+    syncPlayerViewport(); redrawPlayer();
+  }, 200);
+}
+
+function togglePlayerSync() {
+  playerSyncView = !playerSyncView;
+  if (playerWin && !playerWin.closed) {
+    const btn = playerWin.document.getElementById('pv-lock');
+    if (btn) { btn.textContent = playerSyncView ? '🔗 Lock' : '🔓 Free'; btn.className = 'pv-btn' + (playerSyncView ? ' pv-on' : ''); }
+  }
+  if (playerSyncView) { syncPlayerViewport(); }
+  else { updatePlayerScale(); }
+  redrawPlayer();
+}
+
+function syncPlayerViewport() {
+  if (!playerWin || playerWin.closed || !playerSyncView) return;
+  const wrap = playerWin.document.getElementById('pv-wrap');
+  const content = playerWin.document.getElementById('pv-content');
+  if (!wrap || !content) return;
+  content.style.transform = `scale(${zoom})`;
+  wrap.scrollLeft = canvasArea.scrollLeft;
+  wrap.scrollTop = canvasArea.scrollTop;
 }
 
 function togglePlayerGrid() {
@@ -1816,13 +1859,13 @@ function togglePlayerGrid() {
   redrawPlayer();
 }
 
-function playerCellZoomIn() { playerCellScale = Math.min(4, +(playerCellScale + 0.25).toFixed(2)); updatePlayerScale(); redrawPlayer(); }
-function playerCellZoomOut() { playerCellScale = Math.max(0.25, +(playerCellScale - 0.25).toFixed(2)); updatePlayerScale(); redrawPlayer(); }
-function playerCellZoomReset() { playerCellScale = 1; updatePlayerScale(); redrawPlayer(); }
+function playerCellZoomIn() { playerCellScale = Math.min(4, +(playerCellScale + 0.25).toFixed(2)); updatePlayerScale(); if (!playerSyncView) redrawPlayer(); else syncPlayerViewport(); }
+function playerCellZoomOut() { playerCellScale = Math.max(0.25, +(playerCellScale - 0.25).toFixed(2)); updatePlayerScale(); if (!playerSyncView) redrawPlayer(); else syncPlayerViewport(); }
+function playerCellZoomReset() { playerCellScale = 1; updatePlayerScale(); if (!playerSyncView) redrawPlayer(); else syncPlayerViewport(); }
 function updatePlayerScale() {
   if (!playerWin || playerWin.closed) return;
   const el = playerWin.document.getElementById('pv-scale');
-  if (el) el.textContent = Math.round(playerCellScale * 100) + '%';
+  if (el) el.textContent = Math.round((playerSyncView ? zoom : playerCellScale) * 100) + '%';
 }
 
 function redrawPlayer() {
@@ -1831,7 +1874,8 @@ function redrawPlayer() {
   if (!pc) return;
   const px = pc.getContext('2d');
   const _cs = cellSize;
-  cellSize = Math.round(cellSize * playerCellScale);
+  const scale = playerSyncView ? 1 : playerCellScale;
+  cellSize = Math.round(cellSize * scale);
   pc.width = cols * cellSize; pc.height = rows * cellSize;
   px.clearRect(0, 0, pc.width, pc.height);
 
@@ -2022,7 +2066,8 @@ function redrawPlayer() {
   }
 
   // VFX overlay — draw fxCanvas onto player view
-  if (fxState.fog || fxState.particles || fxState.vignette || fxState.lightning || fxState.sunrays) {
+  if (fxState.fog || fxState.particles || fxState.vignette || fxState.lightning || fxState.sunrays ||
+      fxState.shimmer || fxState.floating || fxState.fireflies || fxState.wind || fxState.ash) {
     px.drawImage(fxCanvas, 0, 0);
   }
 
@@ -2101,7 +2146,8 @@ function toggleFX(name) {
   fxState[name] = document.getElementById('fx' + name.charAt(0).toUpperCase() + name.slice(1)).checked;
   const ctrl = document.getElementById('fx' + name.charAt(0).toUpperCase() + name.slice(1) + 'Controls');
   if (ctrl) ctrl.style.display = fxState[name] ? '' : 'none';
-  const needsLoop = fxState.particles || fxState.fog || fxState.lightning || fxState.sunrays;
+  const needsLoop = fxState.particles || fxState.fog || fxState.lightning || fxState.sunrays ||
+                    fxState.shimmer || fxState.floating || fxState.fireflies || fxState.wind || fxState.ash;
   if (needsLoop && !_fxAnimLoop) startFxLoop();
   if (!needsLoop) stopFxLoop();
   requestRedraw();
@@ -2109,7 +2155,8 @@ function toggleFX(name) {
 
 function applyFX() {
   fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
-  if (!fxState.fog && !fxState.particles && !fxState.vignette && !fxState.lightning && !fxState.sunrays) return;
+  if (!fxState.fog && !fxState.particles && !fxState.vignette && !fxState.lightning && !fxState.sunrays &&
+      !fxState.shimmer && !fxState.floating && !fxState.fireflies && !fxState.wind && !fxState.ash) return;
   const w = fxCanvas.width, h = fxCanvas.height;
 
   // Ambient fog
@@ -2229,6 +2276,129 @@ function applyFX() {
     }
     fxCtx.restore();
   }
+
+  // Heat shimmer (sinusoidal color overlay)
+  if (fxState.shimmer) {
+    const intensity = (+document.getElementById('fxShimmerIntensity').value || 40) / 100;
+    const speed = +document.getElementById('fxShimmerSpeed').value || 4;
+    const color = document.getElementById('fxShimmerColor').value || '#ff6600';
+    const r = parseInt(color.slice(1, 3), 16), g = parseInt(color.slice(3, 5), 16), b = parseInt(color.slice(5, 7), 16);
+    const t = Date.now() / (1100 - speed * 80);
+    fxCtx.save();
+    const grad = fxCtx.createLinearGradient(0, 0, w, h);
+    for (let i = 0; i <= 8; i++) {
+      const phase = Math.sin(t + i * 0.9) * 0.5 + 0.5;
+      grad.addColorStop(i / 8, `rgba(${r},${g},${b},${intensity * phase * 0.45})`);
+    }
+    fxCtx.fillStyle = grad;
+    fxCtx.globalCompositeOperation = 'overlay';
+    fxCtx.fillRect(0, 0, w, h);
+    fxCtx.restore();
+  }
+
+  // Floating particles (bubbles / spores / leaves / petals)
+  if (fxState.floating) {
+    const style = document.getElementById('fxFloatingStyle').value || 'bubbles';
+    const count = +document.getElementById('fxFloatingCount').value || 60;
+    const speed = +document.getElementById('fxFloatingSpeed').value || 3;
+    while (floating.length < count) {
+      floating.push({ x: Math.random() * w, y: Math.random() * h, r: 2 + Math.random() * 6, vy: (0.3 + Math.random()) * speed, vx: (Math.random() - 0.5) * speed, phase: Math.random() * Math.PI * 2 });
+    }
+    while (floating.length > count) floating.pop();
+    const t = Date.now() / 1000;
+    fxCtx.save();
+    floating.forEach(p => {
+      p.y -= p.vy * 0.4;
+      p.x += Math.sin(t + p.phase) * 0.4 + p.vx * 0.1;
+      if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+      if (p.x < -10) p.x = w + 10; if (p.x > w + 10) p.x = -10;
+      if (style === 'bubbles') {
+        fxCtx.strokeStyle = 'rgba(220,240,255,0.5)'; fxCtx.fillStyle = 'rgba(220,240,255,0.15)';
+        fxCtx.beginPath(); fxCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxCtx.fill(); fxCtx.stroke();
+      } else if (style === 'spores') {
+        fxCtx.fillStyle = 'rgba(180,255,180,0.45)';
+        fxCtx.beginPath(); fxCtx.arc(p.x, p.y, p.r * 0.5, 0, Math.PI * 2); fxCtx.fill();
+      } else if (style === 'leaves') {
+        fxCtx.fillStyle = 'rgba(120,180,80,0.45)';
+        fxCtx.beginPath();
+        fxCtx.ellipse(p.x, p.y, p.r * 1.6, p.r * 0.8, t + p.phase, 0, Math.PI * 2);
+        fxCtx.fill();
+      } else if (style === 'petals') {
+        fxCtx.fillStyle = 'rgba(255,160,190,0.4)';
+        fxCtx.beginPath();
+        fxCtx.ellipse(p.x, p.y, p.r * 1.4, p.r * 0.7, t * 0.5 + p.phase, 0, Math.PI * 2);
+        fxCtx.fill();
+      }
+    });
+    fxCtx.restore();
+  }
+
+  // Fireflies
+  if (fxState.fireflies) {
+    const count = +document.getElementById('fxFirefliesCount').value || 40;
+    const speed = +document.getElementById('fxFirefliesSpeed').value || 3;
+    const color = document.getElementById('fxFirefliesColor').value || '#ccff00';
+    while (fireflies.length < count) {
+      fireflies.push({ x: Math.random() * w, y: Math.random() * h, r: 1.5 + Math.random() * 2.5, vx: (Math.random() - 0.5) * speed, vy: (Math.random() - 0.5) * speed, phase: Math.random() * Math.PI * 2 });
+    }
+    while (fireflies.length > count) fireflies.pop();
+    const t = Date.now() / 800;
+    const fr = parseInt(color.slice(1, 3), 16), fg = parseInt(color.slice(3, 5), 16), fb = parseInt(color.slice(5, 7), 16);
+    fxCtx.save();
+    fireflies.forEach(f => {
+      f.x += f.vx * 0.25; f.y += f.vy * 0.25;
+      if (f.x < 0) f.x = w; if (f.x > w) f.x = 0;
+      if (f.y < 0) f.y = h; if (f.y > h) f.y = 0;
+      const pulse = Math.sin(t + f.phase) * 0.5 + 0.5;
+      fxCtx.shadowBlur = 8 + pulse * 8; fxCtx.shadowColor = `rgba(${fr},${fg},${fb},0.9)`;
+      fxCtx.fillStyle = `rgba(${fr},${fg},${fb},${0.3 + pulse * 0.7})`;
+      fxCtx.beginPath(); fxCtx.arc(f.x, f.y, f.r * (0.7 + pulse * 0.5), 0, Math.PI * 2); fxCtx.fill();
+    });
+    fxCtx.restore();
+  }
+
+  // Wind lines
+  if (fxState.wind) {
+    const intensity = (+document.getElementById('fxWindIntensity').value || 40) / 100;
+    const speed = +document.getElementById('fxWindSpeed').value || 5;
+    const color = document.getElementById('fxWindColor').value || '#aaddff';
+    const wr = parseInt(color.slice(1, 3), 16), wg = parseInt(color.slice(3, 5), 16), wb = parseInt(color.slice(5, 7), 16);
+    while (windLines.length < Math.floor(30 + intensity * 60)) {
+      windLines.push({ x: Math.random() * w, y: Math.random() * h, len: 40 + Math.random() * 120, speed: (1 + Math.random() * 2) * speed, alpha: 0.1 + Math.random() * 0.3 });
+    }
+    while (windLines.length > Math.floor(30 + intensity * 60)) windLines.pop();
+    fxCtx.save();
+    fxCtx.strokeStyle = `rgba(${wr},${wg},${wb},0.35)`;
+    fxCtx.lineWidth = 1.5;
+    fxCtx.lineCap = 'round';
+    windLines.forEach(ln => {
+      ln.x += ln.speed * 0.6; ln.y += Math.sin(ln.x / 80) * 0.3;
+      if (ln.x > w + ln.len) { ln.x = -ln.len; ln.y = Math.random() * h; }
+      fxCtx.strokeStyle = `rgba(${wr},${wg},${wb},${ln.alpha})`;
+      fxCtx.beginPath(); fxCtx.moveTo(ln.x, ln.y); fxCtx.lineTo(ln.x + ln.len, ln.y); fxCtx.stroke();
+    });
+    fxCtx.restore();
+  }
+
+  // Ash / dust
+  if (fxState.ash) {
+    const density = +document.getElementById('fxAshDensity').value || 80;
+    const speed = +document.getElementById('fxAshSpeed').value || 2;
+    const color = document.getElementById('fxAshColor').value || '#777777';
+    const ar = parseInt(color.slice(1, 3), 16), ag = parseInt(color.slice(3, 5), 16), ab = parseInt(color.slice(5, 7), 16);
+    while (ashParticles.length < density) {
+      ashParticles.push({ x: Math.random() * w, y: Math.random() * h, r: 0.5 + Math.random() * 1.5, vy: (0.3 + Math.random()) * speed, vx: (Math.random() - 0.5) * speed, alpha: 0.3 + Math.random() * 0.5 });
+    }
+    while (ashParticles.length > density) ashParticles.pop();
+    fxCtx.save();
+    ashParticles.forEach(p => {
+      p.y += p.vy * 0.35; p.x += p.vx * 0.15 + Math.sin(Date.now() / 1200 + p.y / 100) * 0.2;
+      if (p.y > h + 5) { p.y = -5; p.x = Math.random() * w; }
+      fxCtx.fillStyle = `rgba(${ar},${ag},${ab},${p.alpha})`;
+      fxCtx.beginPath(); fxCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2); fxCtx.fill();
+    });
+    fxCtx.restore();
+  }
 }
 
 function startFxLoop() {
@@ -2300,10 +2470,10 @@ function redo() {
 function exportJSON() {
   const data = {
     version: 1,
-    format: 'map-beta',
+    format: 'map-dmtool',
     cols, rows, cellSize,
     colorPalette,
-    mapName: document.getElementById('mapName').value || 'map-beta',
+    mapName: document.getElementById('mapName').value || 'map-dmtool',
     bgImageDataURL: bgImageDataURL || null,
     floorLayer, objectLayer, emojiLayer, lightLayer, noteLayer, labelLayer,
     ambientLight,
@@ -2322,7 +2492,7 @@ function exportJSON() {
   const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  const name = (data.mapName || 'map-beta').replace(/[^a-z0-9]/gi, '_');
+  const name = (data.mapName || 'map-dmtool').replace(/[^a-z0-9]/gi, '_');
   a.download = `${name}-${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
@@ -2336,8 +2506,8 @@ function importJSON(ev) {
     try {
       const d = JSON.parse(e.target.result);
 
-      // Support map-beta format
-      if (d.format === 'map-beta') {
+      // Support map-dmtool / legacy map-beta format
+      if (d.format === 'map-dmtool' || d.format === 'map-beta') {
         cols = d.cols || 20; rows = d.rows || 15; cellSize = d.cellSize || 40;
         floorLayer = d.floorLayer || {};
         objectLayer = d.objectLayer || {};
@@ -2388,54 +2558,8 @@ function importJSON(ev) {
           saveHistory('📂 Import');
         }
       }
-      // Support old map-maker format (v13)
-      else if (d.version && d.planes) {
-        cols = d.cols || 20; rows = d.rows || 15; cellSize = d.cellSize || 40;
-        // Load first plane
-        const planes = d.planes;
-        const firstKey = Object.keys(planes)[0];
-        if (firstKey && planes[firstKey]) {
-          const p = planes[firstKey];
-          floorLayer = p.floorLayer || {};
-          objectLayer = p.objectLayer || {};
-          emojiLayer = p.emojiLayer || {};
-          lightLayer = p.lightLayer || {};
-          noteLayer = p.noteLayer || {};
-          labelLayer = p.labelLayer || {};
-          if (p.ambientLight !== undefined) ambientLight = p.ambientLight;
-        }
-        if (d.colorPalette) { colorPalette = d.colorPalette; initColorPalette(); }
-        if (d.mapName) document.getElementById('mapName').value = d.mapName;
-        updateCanvasSize();
-        saveHistory('📂 Import (map-maker)');
-      }
-      // Support old map-hider session format
-      else if (d.version && d.imageData) {
-        bgImageDataURL = d.imageData;
-        const img = new Image();
-        img.onload = () => {
-          bgImage = img;
-          cols = Math.ceil(img.width / (d.gridSize || 40));
-          rows = Math.ceil(img.height / (d.gridSize || 40));
-          cellSize = d.gridSize || 40;
-          if (d.fog) fog = d.fog;
-          if (d.toks) {
-            tokens = d.toks.map(t => ({...t, tags: (t.conditions || []).join(',')}));
-          }
-          if (d.initList) {
-            initList = d.initList.map(it => ({
-              name: it.name || '', score: it.score || 0, tokIdx: it.tokIdx ?? null,
-              hp: it.hp ?? 0, maxHp: it.maxHp ?? 0, ac: it.ac ?? 0,
-              dead: it.dead ?? false, conditions: it.conditions || [], exhaustion: it.exhaustion ?? 0,
-              emoji: it.emoji || autoDetectEmoji(it.name || ''), notes: it.notes || ''
-            }));
-            initCur = d.initCur || 0; initRound = d.initRound || 1;
-          }
-          updateCanvasSize();
-          saveHistory('📂 Import (fog-of-war)');
-        };
-        img.src = bgImageDataURL;
-      }
+      // Legacy formats removed: map-maker (v13) and map-hider are no longer supported.
+      // Only map-dmtool / map-beta JSON files can be imported.
 
       document.getElementById('gridWidth').value = cols;
       document.getElementById('gridHeight').value = rows;
@@ -2552,7 +2676,7 @@ function doExportPNG(mode) {
     tx.restore();
   });
 
-  const name = (document.getElementById('mapName').value || 'map-beta').replace(/[^a-z0-9]/gi, '_');
+  const name = (document.getElementById('mapName').value || 'map-dmtool').replace(/[^a-z0-9]/gi, '_');
   const a = document.createElement('a');
   a.href = tc.toDataURL('image/png');
   a.download = `${name}-${mode}-${Date.now()}.png`;

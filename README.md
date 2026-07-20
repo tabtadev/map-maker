@@ -1,18 +1,19 @@
-# Map Tools
+﻿# Map DmTool
 
-Browser-based tools for creating and managing interactive maps. Demo: https://tabtadev.github.io/map-maker/index.html
+Browser-based tool for creating and managing interactive TTRPG battle maps. Demo: https://tabtadev.github.io/map-maker/index.html
 
 ![Example](/Animation.gif)
 
 ---
 
-## Map Beta - Unified Map Studio
+## Map DmTool — Unified Map Studio
 
-The all-in-one map creation and play tool, combining the best of Map Maker and Fog of War into a single streamlined experience.
+The all-in-one map creation and play tool for Dungeon Masters.
 
 **Build Mode**
 - Draw terrain with 15 procedural textures (stone, wood, water, grass, etc.)
 - Place walls, doors, windows, and stairs along cell edges (full-edge rendering)
+
 - Room builder: draw freeform rooms with auto-walls
 - Add 6 types of light sources with dynamic glow, flicker, and line-of-sight
 - Place emojis from 10 categories with adjustable size
@@ -42,30 +43,16 @@ The all-in-one map creation and play tool, combining the best of Map Maker and F
 
 ---
 
-## Legacy Tools
-
-### Map Maker
-Canvas editor for building detailed maps. Still available at `map-maker.html`.
-
-### Fog of War
-Image-based fog overlay tool. Still available at `map-hider.html`.
-
----
-
 ## Structure
 
 ```
 index.html          Landing page
-map-beta.html       Map Beta (unified tool)
-map-maker.html      Map Maker (legacy)
-map-hider.html      Fog of War (legacy)
+map-dmtool.html     Map DmTool (unified app)
 css/
   shared.css        Shared styles
-  map-beta.css      Map Beta styles
-  map-maker.css     Map Maker styles
-  map-hider.css     Fog of War styles
+  map-dmtool.css    Map DmTool styles
 js/
-  map-beta.js       Map Beta engine
-  map-maker.js      Map Maker logic
-  map-hider.js      Fog of War logic
+  map-dmtool.js     Map DmTool engine
 ```
+
+

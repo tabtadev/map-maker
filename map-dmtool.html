@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Map Beta</title>
+  <title>Map DmTool</title>
   <link rel="stylesheet" href="css/shared.css">
-  <link rel="stylesheet" href="css/map-beta.css">
+  <link rel="stylesheet" href="css/map-dmtool.css">
 </head>
 <body>
   <div class="container" id="app">
@@ -72,15 +72,15 @@
       </div>
       <div class="toolbar-section">
         <button class="toolbar-btn" onclick="exportJSON()" title="Export JSON">💾 Save</button>
-        <button class="toolbar-btn" onclick="document.getElementById('importInput').click()" title="Import JSON">📂 Load</button>
+        <button class="toolbar-btn" onclick="document.getElementById('importInput').click()" title="Import JSON">📂 Load (Json)</button>
         <input type="file" id="importInput" accept=".json" style="display:none" onchange="importJSON(event)">
-        <button class="toolbar-btn" onclick="exportPNG()" title="Export PNG">📸 PNG</button>
+        <button class="toolbar-btn" onclick="exportPNG()" title="Export PNG">📸 Export PNG</button>
       </div>
       <div class="toolbar-divider"></div>
 
       <!-- IMPORT IMAGE (play mode / background) -->
       <div class="toolbar-section">
-        <button class="toolbar-btn" onclick="document.getElementById('imgInput').click()" title="Import background image">🖼️ Image</button>
+        <button class="toolbar-btn" onclick="document.getElementById('imgInput').click()" title="Import background image">🖼️ Load Image</button>
         <input type="file" id="imgInput" accept="image/*" style="display:none" onchange="loadBackgroundImage(event)">
       </div>
       <div class="toolbar-divider"></div>
@@ -324,6 +324,48 @@
                 <label>Intensity <input type="range" id="fxSunraysIntensity" min="10" max="100" value="40" class="small-range"></label>
                 <label>Color <input type="color" id="fxSunraysColor" value="#ffdd88" class="small-color"></label>
                 <label>Angle <input type="range" id="fxSunraysAngle" min="0" max="360" value="45" class="small-range"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxShimmer" onchange="toggleFX('shimmer')"> 🔥 Heat Shimmer</label>
+              <div class="fx-controls" id="fxShimmerControls" style="display:none">
+                <label>Intensity <input type="range" id="fxShimmerIntensity" min="10" max="100" value="40" class="small-range"></label>
+                <label>Speed <input type="range" id="fxShimmerSpeed" min="1" max="10" value="4" class="small-range"></label>
+                <label>Color <input type="color" id="fxShimmerColor" value="#ff6600" class="small-color"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxFloating" onchange="toggleFX('floating')"> 🍃 Floating</label>
+              <div class="fx-controls" id="fxFloatingControls" style="display:none">
+                <label>Style
+                  <select id="fxFloatingStyle" class="small-select">
+                    <option value="bubbles">Bubbles</option>
+                    <option value="spores">Spores</option>
+                    <option value="leaves">Leaves</option>
+                    <option value="petals">Petals</option>
+                  </select>
+                </label>
+                <label>Count <input type="range" id="fxFloatingCount" min="20" max="200" value="60" class="small-range"></label>
+                <label>Speed <input type="range" id="fxFloatingSpeed" min="1" max="10" value="3" class="small-range"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxFireflies" onchange="toggleFX('fireflies')"> ✨ Fireflies</label>
+              <div class="fx-controls" id="fxFirefliesControls" style="display:none">
+                <label>Count <input type="range" id="fxFirefliesCount" min="10" max="150" value="40" class="small-range"></label>
+                <label>Color <input type="color" id="fxFirefliesColor" value="#ccff00" class="small-color"></label>
+                <label>Speed <input type="range" id="fxFirefliesSpeed" min="1" max="10" value="3" class="small-range"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxWind" onchange="toggleFX('wind')"> 💨 Wind</label>
+              <div class="fx-controls" id="fxWindControls" style="display:none">
+                <label>Intensity <input type="range" id="fxWindIntensity" min="10" max="100" value="40" class="small-range"></label>
+                <label>Speed <input type="range" id="fxWindSpeed" min="1" max="10" value="5" class="small-range"></label>
+                <label>Color <input type="color" id="fxWindColor" value="#aaddff" class="small-color"></label>
+              </div>
+
+              <label class="toggle-row"><input type="checkbox" id="fxAsh" onchange="toggleFX('ash')"> 🌑 Ash & Dust</label>
+              <div class="fx-controls" id="fxAshControls" style="display:none">
+                <label>Density <input type="range" id="fxAshDensity" min="20" max="300" value="80" class="small-range"></label>
+                <label>Speed <input type="range" id="fxAshSpeed" min="1" max="10" value="2" class="small-range"></label>
+                <label>Color <input type="color" id="fxAshColor" value="#777777" class="small-color"></label>
               </div>
             </div>
           </div>
@@ -733,6 +775,6 @@
     </div>
   </div>
 
-  <script src="js/map-beta.js"></script>
+  <script src="js/map-dmtool.js"></script>
 </body>
 </html>
